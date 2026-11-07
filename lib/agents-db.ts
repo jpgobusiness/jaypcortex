@@ -89,9 +89,21 @@ async function createRoom(tx: Tx, agentName: string, color: string) {
 export async function ensureOrchestrator() {
   const existing = await prisma.agent.findUnique({
     where: { id: ORCHESTRATOR_ID },
-    select: { id: true },
+    select: { id: true, slug: true, name: true },
   });
-  if (existing) return;
+  if (existing) {
+    if (existing.slug !== "cortex" || existing.name !== "Cortex") {
+      try {
+        await prisma.agent.update({
+          where: { id: existing.id },
+          data: { slug: "cortex", name: "Cortex", role: existing.name ? undefined : "Orquestrador do escritório" },
+        });
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+      }
+    }
+    return;
+  }
   try {
     await prisma.$transaction(async (tx) => {
       const room = await createRoom(tx, "Cortex", "#7b68ee");
@@ -99,7 +111,8 @@ export async function ensureOrchestrator() {
         data: {
           id: ORCHESTRATOR_ID,
           name: "Cortex",
-          role: "Orquestrador",
+          slug: "cortex",
+          role: "Orquestrador do escritório",
           description:
             "Recebe os pedidos do chat, decide quais agentes chamar e junta as respostas em uma entrega.",
           isOrchestrator: true,

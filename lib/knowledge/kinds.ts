@@ -29,6 +29,7 @@ export const KIND_LABELS: Record<DocumentKind, string> = {
 export const PROMPT_LAYERS = [
   "identidade",
   "missao",
+  "roteamento",
   "regras",
   "metodologia",
   "comportamental",
@@ -42,6 +43,7 @@ export type PromptLayer = (typeof PROMPT_LAYERS)[number];
 export const LAYER_LABELS: Record<PromptLayer, string> = {
   identidade: "Identidade",
   missao: "Missão",
+  roteamento: "Roteamento",
   regras: "Regras",
   metodologia: "Metodologia",
   comportamental: "Comportamental",
