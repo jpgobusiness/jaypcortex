@@ -1,9 +1,21 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Plus, Send, Undo2, Users } from "lucide-react";
 import Drawer from "@/components/office/ui/Drawer";
 import AgentAvatar from "@/components/office/ui/AgentAvatar";
+import { apiGet } from "@/lib/fetcher";
 import type { Agent } from "@/lib/types";
+
+type RouteLog = {
+  id: string;
+  request: string;
+  agentSlug: string | null;
+  mode: string;
+  intentKey: string | null;
+  confidence: number;
+  createdAt: string;
+};
 
 type Props = {
   agents: Agent[];
@@ -30,6 +42,13 @@ export default function CortexPanel({
 }: Props) {
   const cortex = agents.find((agent) => agent.isOrchestrator);
   const team = agents.filter((agent) => !agent.isOrchestrator);
+  const [logs, setLogs] = useState<RouteLog[]>([]);
+
+  useEffect(() => {
+    apiGet<RouteLog[]>("/api/cortex/routes")
+      .then(setLogs)
+      .catch(() => setLogs([]));
+  }, []);
   const chip =
     "inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-black/[0.03]";
 
@@ -86,6 +105,23 @@ export default function CortexPanel({
           <Plus className="h-3.5 w-3.5" /> Criar agente
         </button>
       </div>
+
+      <h3 className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Últimos roteamentos</h3>
+      {logs.length === 0 ? (
+        <p className="mt-2 text-xs text-[var(--muted)]">Ainda não há chamadas da tool cortex.</p>
+      ) : (
+        <ul className="mt-2 space-y-1">
+          {logs.slice(0, 12).map((log) => (
+            <li key={log.id} className="rounded-xl border border-[var(--border)] px-2.5 py-1.5 text-[11px]">
+              <span className="block truncate text-slate-800">{log.request}</span>
+              <span className="text-[var(--muted)]">
+                {log.agentSlug || "esclarecer"} · {log.mode}
+                {log.intentKey ? ` · ${log.intentKey}` : ""} · {(log.confidence * 100).toFixed(0)}%
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <h3 className="mt-5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Equipe</h3>
       {team.length === 0 ? (

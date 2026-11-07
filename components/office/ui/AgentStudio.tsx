@@ -10,12 +10,13 @@ import { fileHref } from "@/lib/workspaces";
 import { LAYER_LABELS, type PromptLayer } from "@/lib/knowledge/kinds";
 import type { Agent } from "@/lib/types";
 
-type Tab = "visao" | "prompt" | "base" | "propostas" | "historico" | "testar";
+type Tab = "visao" | "prompt" | "base" | "roteamento" | "propostas" | "historico" | "testar";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "visao", label: "Visão geral" },
   { id: "prompt", label: "Prompt" },
   { id: "base", label: "Base" },
+  { id: "roteamento", label: "Roteamento" },
   { id: "propostas", label: "Propostas" },
   { id: "historico", label: "Histórico" },
   { id: "testar", label: "Testar" },
@@ -65,6 +66,7 @@ export default function AgentStudio({
         ))}
       </div>
       {tab === "visao" && <Overview agent={agent} />}
+      {tab === "roteamento" && <RoutingTab agentId={agent.id} />}
       {tab === "prompt" && <PromptTab agentId={agent.id} />}
       {tab === "base" && (
         <div className="-mx-4 -mb-4">
@@ -88,6 +90,70 @@ function Overview({ agent }: { agent: Agent }) {
           Abrir sala
         </Link>
       )}
+      <p className="text-[11px] text-[var(--muted)]">O roteamento do Cortex (intents, keywords, tools) fica na aba Roteamento.</p>
+    </div>
+  );
+}
+
+function RoutingTab({ agentId }: { agentId: string }) {
+  const [json, setJson] = useState("{}");
+  const [error, setError] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    const row = await apiGet<{ routing: unknown }>(`/api/agents/${agentId}/routing`);
+    setJson(JSON.stringify(row.routing ?? {}, null, 2));
+  }
+
+  useEffect(() => {
+    load().catch((e) => setError(e instanceof Error ? e.message : "erro"));
+  }, [agentId]);
+
+  async function save() {
+    setError(null);
+    setOkMsg(null);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      setError("JSON inválido");
+      return;
+    }
+    setBusy(true);
+    try {
+      await apiPatch(`/api/agents/${agentId}/routing`, { routing: parsed });
+      setOkMsg("Roteamento salvo.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "erro");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-[var(--muted)]">
+        JSON de roteamento do Cortex: domains, intents (examples + tools), keywords, allowed_tools, default_mode.
+      </p>
+      <textarea
+        value={json}
+        onChange={(e) => setJson(e.target.value)}
+        spellCheck={false}
+        className="h-72 w-full rounded-lg border border-[var(--border)] bg-[#f6f7f9] p-3 font-mono text-[11px] leading-relaxed"
+      />
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={busy}
+          className="rounded-lg bg-[var(--brand)] px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
+        >
+          Salvar roteamento
+        </button>
+        {okMsg ? <span className="text-xs text-emerald-700">{okMsg}</span> : null}
+        {error ? <span className="text-xs text-red-600">{error}</span> : null}
+      </div>
     </div>
   );
 }
