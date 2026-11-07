@@ -410,42 +410,64 @@ model WorkspaceFolder {
 
 /// Arquivo (página de conteúdo) de um espaço, solto ou dentro de uma pasta.
 model WorkspaceFile {
-  id          String           @id @default(cuid())
-  workspaceId String
-  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  folderId    String?
-  folder      WorkspaceFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  title       String           @default("Sem título")
-  content     String           @default("") // documento do editor em JSON (TipTap)
-  excerpt     String           @default("") // início do texto, para prévias no dashboard
-  order       Int              @default(0)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  knowledge   AgentKnowledge[] // agentes que usam este arquivo como base
+  id           String           @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folderId     String?
+  folder       WorkspaceFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  title        String           @default("Sem título")
+  content      String           @default("") // documento do editor em JSON (TipTap)
+  excerpt      String           @default("") // início do texto, para prévias no dashboard
+  order        Int              @default(0)
+  kind         String           @default("contexto")
+  tags         String[]         @default([])
+  searchText   String           @default("")
+  contentHash  String?
+  indexedAt    DateTime?
+  indexStatus  String           @default("pending")
+  updatedBy    String?          @db.Uuid
+  source       String           @default("ui")
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  knowledge    AgentKnowledge[]
+  chunks       KnowledgeChunk[]
+  promptLayers AgentPromptLayer[]
+  revisions    FileRevision[]
 
   @@index([workspaceId, folderId, order])
   @@index([folderId])
+  @@index([kind])
 }
 
 /// Agente de IA do escritório. Um deles é o orquestrador (o "cérebro").
 model Agent {
-  id             String           @id @default(cuid())
-  name           String
-  role           String           @default("") // cargo exibido no escritório
-  description    String           @default("") // o que faz; o orquestrador usa para escolher quem chamar
-  instructions   String           @default("") // instruções fixas (prompt de sistema)
-  isOrchestrator Boolean          @default(false)
-  deskIndex      Int?             @unique // mesa no escritório (o orquestrador fica na sala de vidro)
-  skinTone       String           @default("#c68a62")
-  hairStyle      String           @default("short")
-  hairColor      String           @default("#2a1b14")
-  shirtColor     String           @default("#4f46e5")
-  accessory      String           @default("none") // none | headphones | glasses
-  workspaceId    String?          @unique // sala do agente (um espaço de trabalho)
-  workspace      Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  knowledge      AgentKnowledge[]
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  id                   String              @id @default(cuid())
+  name                 String
+  slug                 String?             @unique
+  role                 String              @default("")
+  description          String              @default("")
+  instructions         String              @default("")
+  isOrchestrator       Boolean             @default(false)
+  deskIndex            Int?                @unique
+  skinTone             String              @default("#c68a62")
+  hairStyle            String              @default("short")
+  hairColor            String              @default("#2a1b14")
+  shirtColor           String              @default("#4f46e5")
+  accessory            String              @default("none")
+  workspaceId          String?             @unique
+  workspace            Workspace?          @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  model                String              @default("claude-sonnet")
+  temperature          Float               @default(0.3)
+  status                String               @default("draft")
+  activePromptVersionId String?
+  retrievalConfig       Json                 @default("{\"topK\":8,\"minScore\":0.25,\"hybridWeight\":0.6,\"kinds\":[]}")
+  capabilities          Json                 @default("[]")
+  knowledge             AgentKnowledge[]
+  promptLayers          AgentPromptLayer[]
+  promptVersions        AgentPromptVersion[]
+  proposals             ChangeProposal[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
 }
 
 /// Perfil 1:1 com auth.users. Criado pelo trigger; role admin só via seed/gestão.
@@ -473,4 +495,124 @@ model AgentKnowledge {
 
   @@unique([agentId, fileId])
   @@index([fileId])
+}
+
+/// Trecho indexado (FTS + vetor) de um arquivo.
+model KnowledgeChunk {
+  id         String        @id @default(cuid())
+  fileId     String
+  file       WorkspaceFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  chunkIndex Int
+  headingPath String       @default("")
+  content    String
+  tokenCount Int           @default(0)
+  embedding  Unsupported("vector")?
+  createdAt  DateTime      @default(now())
+
+  @@unique([fileId, chunkIndex])
+  @@index([fileId])
+}
+
+model AgentPromptLayer {
+  id        String        @id @default(cuid())
+  agentId   String
+  agent     Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  fileId    String
+  file      WorkspaceFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  layer     String
+  order     Int           @default(0)
+  enabled   Boolean       @default(true)
+
+  @@unique([agentId, layer])
+  @@index([fileId])
+  @@index([agentId, order])
+}
+
+model AgentPromptVersion {
+  id              String   @id @default(cuid())
+  agentId         String
+  agent           Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  version         Int
+  composedPrompt  String
+  layersSnapshot  Json
+  note            String?
+  createdBy       String?  @db.Uuid
+  source          String   @default("ui")
+  createdAt       DateTime @default(now())
+
+  @@unique([agentId, version])
+  @@index([agentId])
+}
+
+model ChangeProposal {
+  id              String    @id @default(cuid())
+  agentId         String?
+  agent           Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  targetType      String
+  targetId        String?
+  title           String
+  rationale       String    @default("")
+  baseHash        String?
+  proposedContent Json
+  proposedMeta    Json?
+  diffText        String    @default("")
+  status          String    @default("pending")
+  createdBy       String?   @db.Uuid
+  source          String    @default("mcp")
+  appliedBy       String?   @db.Uuid
+  appliedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  revisions       FileRevision[]
+
+  @@index([agentId, status])
+  @@index([status, createdAt])
+}
+
+model FileRevision {
+  id         String          @id @default(cuid())
+  fileId     String
+  file       WorkspaceFile   @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  content    String
+  title      String
+  hash       String
+  createdBy  String?         @db.Uuid
+  source     String          @default("ui")
+  proposalId String?
+  proposal   ChangeProposal? @relation(fields: [proposalId], references: [id], onDelete: SetNull)
+  createdAt  DateTime        @default(now())
+
+  @@index([fileId, createdAt])
+  @@index([hash])
+}
+
+model McpToken {
+  id         String    @id @default(cuid())
+  name       String
+  tokenHash  String    @unique
+  prefix     String
+  scopes     String[]  @default([])
+  profileId  String    @db.Uuid
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  audits     AuditLog[]
+
+  @@index([profileId])
+}
+
+model AuditLog {
+  id        String    @id @default(cuid())
+  actorId   String?
+  actorType String    @default("user")
+  tokenId   String?
+  token     McpToken? @relation(fields: [tokenId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String?
+  meta      Json?
+  at        DateTime  @default(now())
+
+  @@index([at])
+  @@index([entity, entityId])
 }
