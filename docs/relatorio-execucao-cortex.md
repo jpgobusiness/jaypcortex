@@ -46,7 +46,7 @@ Nenhum. Sem LLM no servidor. Contratos das tools antigas mantidos (nomes iguais;
 - C5 — tools `cortex`, `get_agent_context`, `list_agent_tools`; descrições revisadas; prompt `cortex_start`.
 - C6 — seed idempotente: Cortex 4 camadas, 2 docs, routing dos agentes.
 - C7 — aba Roteamento (JSON validado) + log no painel do Cortex.
-- C8 — `npm test` 68 ok; `npm run build` limpo.
+- C8 — `npm test` 68 ok; `npm run build` limpo. Push `main` (`d03ff8c`). Produção: `cortex` + `get_agent_context` + `list_agent_tools` no ar. Regressão `get_agent`/`list_documents` nos 9 agentes OK. 5 chamadas `cortex`: lista hoje → gestao-tempo/acao; priorizo hoje → briefing; funding MAP → migracao-aws/conhecimento; procrastinar → misto; frase ambígua → esclarecer. Sem dados `[TESTE CORTEX]`.
 - C9 — docs Quick/ChatGPT/contexto + este relatório.
 
 ## Como testar depois do deploy
