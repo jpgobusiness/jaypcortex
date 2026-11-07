@@ -22,6 +22,11 @@ export function getPostgresPoolerUrl(): string | undefined {
   return process.env.POSTGRES_POOLER_URL ?? process.env.POSTGRES_DATABASE_URL;
 }
 
+/**
+ * Pooler do Supabase usa `sslmode=require`. No `pg`, isso vira `ssl: {}`
+ * e o Node da Vercel rejeita a cadeia (self-signed in certificate chain).
+ * `no-verify` mantém TLS, sem exigir CA pública.
+ */
 export function getPostgresUrlForAdapter(): string {
   const url = getPostgresPoolerUrl();
   if (!url) {
@@ -29,5 +34,11 @@ export function getPostgresUrlForAdapter(): string {
       "POSTGRES_POOLER_URL ou POSTGRES_DATABASE_URL ausente. Defina no .env (não commitar)."
     );
   }
-  return url;
+  return withPgSslNoVerify(url);
+}
+
+function withPgSslNoVerify(raw: string): string {
+  const parsed = new URL(raw);
+  parsed.searchParams.set("sslmode", "no-verify");
+  return parsed.toString();
 }

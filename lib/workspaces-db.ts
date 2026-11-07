@@ -1,4 +1,4 @@
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Prisma } from "@/app/generated/prisma-postgres/client";
 import { prisma } from "@/lib/prisma";
 
 /** Campos do arquivo usados em listas (sem o conteúdo, que pode ser grande). */

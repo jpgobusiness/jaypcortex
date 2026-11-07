@@ -1,4 +1,4 @@
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Prisma } from "@/app/generated/prisma-postgres/client";
 import { prisma } from "@/lib/prisma";
 import { ok, badRequest, notFound, serverError, str, num } from "@/lib/api";
 import { fileSummarySelect, nextFileOrder } from "@/lib/workspaces-db";

@@ -55,3 +55,7 @@ prisma/*.db
 # arquivos locais que não vão para o deploy
 *.mp4
 /Logotipo futurista JayP Cortex.png
+
+# token MCP em claro (só o João copia)
+docs/.mcp-token-amazon-quick.local
+docs/.mcp-token-*.local

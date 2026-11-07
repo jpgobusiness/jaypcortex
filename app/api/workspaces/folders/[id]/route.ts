@@ -1,4 +1,4 @@
-import type { Prisma } from "@/app/generated/prisma/client";
+import type { Prisma } from "@/app/generated/prisma-postgres/client";
 import { prisma } from "@/lib/prisma";
 import { ok, badRequest, notFound, serverError, str, num } from "@/lib/api";
 import { NAME_MAX_LENGTH, NAME_TOO_LONG } from "@/lib/workspaces";

@@ -4,15 +4,16 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 6 nov 2026
+Última atualização: 7 nov 2026
 
 ## Últimas mudanças
 
-- 6 nov 2026 — App Prisma só Postgres (sem sqlite no runtime) para o build da Vercel. Deploy ainda depende do login na conta Vercel do João Paulo.
+- 7 nov 2026 — **Plano aprovado:** MCP na Vercel + base vetorizada (pgvector, busca híbrida) + prompt em camadas versionado + propostas de mudança + Agente de Migração AWS (MAP). Ver `docs/plano-mcp-agentes.md` (Cursor executa de ponta a ponta).
+- 6 nov 2026 — Prisma na Vercel usa `sslmode=no-verify` (o `sslmode=require` do pooler quebrava TLS).
+- 6 nov 2026 — App Prisma só Postgres no runtime (tipos `prisma-postgres`). Build da Vercel: Node 22.
 - 6 nov 2026 — **Gestão de usuários** em `/usuarios`. Cadastro público bloqueado no banco (allowlist).
 - 6 nov 2026 — **Corte local:** `DATABASE_PROVIDER=postgres`. `dev.db` fica só como backup.
-- 6 nov 2026 — **Etapas 2–6:** dados copiados (sem anexos antigos); bucket; profiles + login + RLS; checklist Vercel.
-- 6 nov 2026 — **Anexos antigos não migram.** Storage só para anexos novos.
+- 6 nov 2026 — **Etapas 2–6:** dados copiados (sem anexos antigos); bucket; profiles + login + RLS.
 
 ---
 
@@ -20,19 +21,19 @@
 
 | Item | Hoje |
 |---|---|
-| App | Next.js 16 (App Router) + React 19, `npm run dev` na máquina |
+| App | Next.js 16 (App Router) + React 19, local e na Vercel |
 | Banco | **Postgres no Supabase** (pooler `aws-1-us-west-2`). Backup SQLite: `dev.db` + `backups/dev-2026-11-06.db` (não apagar). |
 | Flag | `DATABASE_PROVIDER=postgres`. |
-| ORM | Prisma 7. Cliente sqlite em `app/generated/prisma`. Cliente postgres em `app/generated/prisma-postgres`. |
+| ORM | Prisma 7 + `pg` Pool. Cliente postgres em `app/generated/prisma-postgres`. TLS do pooler: `sslmode=no-verify`. |
 | Auth | **Login fechado** em `/login` (e-mail + senha, cookie httpOnly). Middleware protege páginas e `/api/*`. Logout no menu. |
 | Signup | **Bloqueado.** Sem tela de cadastro. Trigger em `auth.users` recusa signup público; admin cria via allowlist. A flag `disable_signup` do painel ainda aparece `false` (a API de Auth não deixa a service role alterar). |
 | Admin | `pjoao4446@gmail.com` em `auth.users` + `profiles.role=admin`. Senha **não** está no repo. |
 | Supabase | `gzavuqgoxllbgfyyyrjv` (`us-west-2`). `public` com dados copiados (28 tabelas) + `profiles`. `OvertimeAttachment` = 0 linhas. |
-| Hospedagem alvo | Vercel (ainda não publicado). Build gera os dois clientes Prisma. |
+| Hospedagem | **Vercel** em https://jaypcortex.vercel.app. GitHub `jpgobusiness/jaypcortex`. Node 22. |
 | Edge Functions | Zero |
 | Storage | Bucket privado `overtime-attachments` vazio. Anexos **novos** vão para o Storage. |
 
-Conclusão: app no Postgres + login + gestão de usuários. Publicar na Vercel é o que falta para ficar na nuvem.
+Conclusão: app no Postgres + login + gestão de usuários, publicado na Vercel.
 
 ---
 
@@ -284,7 +285,7 @@ Plano MCP (não implementar neste documento): stdio TypeScript → HTTP da plata
 5. ~~RLS (com funções SECURITY DEFINER)~~ **feito**
 6. ~~Login no Next~~ **feito**
 7. ~~Corte local `DATABASE_PROVIDER=postgres`~~ **feito** (reiniciar o `next dev` se ainda estiver no processo antigo)
-8. Publicar na Vercel (checklist na §12)
+8. ~~Publicar na Vercel~~ **feito** — https://jaypcortex.vercel.app
 
 Não desligar o `dev.db` no primeiro dia. É o backup de verdade.
 
@@ -317,7 +318,9 @@ Variáveis (sem valores aqui):
 
 Não colocar senha. `DATABASE_URL` na Vercel pode ser a mesma do pooler se o Prisma usar `POSTGRES_POOLER_URL`.
 
-Build já faz `prisma generate` sqlite + postgres. Root Directory = repo. Node 20+. Depois do primeiro deploy: `npm run db:migrate:postgres` não precisa se o schema já está no ar; só se houver migration nova.
+Build faz `DATABASE_PROVIDER=postgres prisma generate && next build`. Root Directory = repo. Node 22. Depois do primeiro deploy: `npm run db:migrate:postgres` não precisa se o schema já está no ar; só se houver migration nova.
+
+No painel Auth do Supabase, Site URL / Redirect URLs devem incluir `https://jaypcortex.vercel.app`.
 
 ---
 
@@ -342,7 +345,7 @@ Fase 1 em execução, por etapas (parar e esperar “ok” entre elas):
 3. ~~profiles + admin~~ **feito** (desligar signup no painel ainda é manual)
 4. ~~Login + middleware~~ **feito**
 5. ~~RLS~~ **feito**
-6. ~~Checklist Vercel~~ **feito** — falta criar o projeto na Vercel e colar as env
+6. ~~Checklist Vercel~~ **feito** — projeto `jaypcortex` no ar, env coladas (sem senha de usuário)
 
 Edge Functions: zero. `kind`/tags: só se o Quick precisar.
 

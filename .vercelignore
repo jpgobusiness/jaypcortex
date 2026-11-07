@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.vercel
+.env*
+!.env.example
+*.db
+*.db-journal
+backups
+*.mp4
+app/generated/prisma
+app/generated/prisma-postgres
