@@ -4,15 +4,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 7 nov 2026
+Última atualização: 7 nov 2026 (MCP + Agente MAP em produção)
 
 ## Últimas mudanças
 
-- 7 nov 2026 — **Plano aprovado:** MCP na Vercel + base vetorizada (pgvector, busca híbrida) + prompt em camadas versionado + propostas de mudança + Agente de Migração AWS (MAP). Ver `docs/plano-mcp-agentes.md` (Cursor executa de ponta a ponta).
+- 7 nov 2026 — **MCP + agentes profissionais no ar:** `/api/mcp` (Bearer + escopos), pgvector/FTS híbrida, indexação no save do editor, prompt em camadas versionado, propostas, UI do escritório (abas), Agente de Migração AWS (`migracao-aws`). Sem Edge Functions. Token amazon-quick só em `docs/.mcp-token-amazon-quick.local` (gitignored). Ver `docs/mcp-conexao-quick.md`.
+- 7 nov 2026 — **Plano aprovado (substituído pelo item acima como estado):** MCP na Vercel + base vetorizada + prompt em camadas + propostas + Agente MAP. Plano: `docs/plano-mcp-agentes.md`.
 - 6 nov 2026 — Prisma na Vercel usa `sslmode=no-verify` (o `sslmode=require` do pooler quebrava TLS).
 - 6 nov 2026 — App Prisma só Postgres no runtime (tipos `prisma-postgres`). Build da Vercel: Node 22.
 - 6 nov 2026 — **Gestão de usuários** em `/usuarios`. Cadastro público bloqueado no banco (allowlist).
-- 6 nov 2026 — **Corte local:** `DATABASE_PROVIDER=postgres`. `dev.db` fica só como backup.
 - 6 nov 2026 — **Etapas 2–6:** dados copiados (sem anexos antigos); bucket; profiles + login + RLS.
 
 ---
@@ -30,10 +30,13 @@
 | Admin | `pjoao4446@gmail.com` em `auth.users` + `profiles.role=admin`. Senha **não** está no repo. |
 | Supabase | `gzavuqgoxllbgfyyyrjv` (`us-west-2`). `public` com dados copiados (28 tabelas) + `profiles`. `OvertimeAttachment` = 0 linhas. |
 | Hospedagem | **Vercel** em https://jaypcortex.vercel.app. GitHub `jpgobusiness/jaypcortex`. Node 22. |
-| Edge Functions | Zero |
+| Edge Functions | Zero (MCP e indexação no Next/Vercel) |
 | Storage | Bucket privado `overtime-attachments` vazio. Anexos **novos** vão para o Storage. |
+| MCP | `https://jaypcortex.vercel.app/api/mcp` (alias `/api/mcp/mcp`). Auth Bearer `McpToken` (hash sha256, escopos `read`/`propose`/`write`). |
+| Busca | Híbrida RRF (`match_knowledge`): FTS português + pgvector 1536. Sem `OPENAI_API_KEY` → `indexStatus=skipped`, só FTS. |
+| Agente MAP | slug `migracao-aws`, 6 camadas de prompt, 12 docs + 5 templates, prompt v1 publicado. |
 
-Conclusão: app no Postgres + login + gestão de usuários, publicado na Vercel.
+Conclusão: app no Postgres + login + MCP + Agente MAP, publicado na Vercel.
 
 ---
 
@@ -53,8 +56,9 @@ Tudo é de **um operador** (você). Não há multi-empresa nem “criar conta”
 
 ### Conhecimento e agentes
 - **Espaços de trabalho** — espaços → pastas (1 nível) → arquivos (páginas TipTap)
-- **Escritório de agentes** — agentes 3D, cada um com “sala” (um Workspace) e pastas padrão: `Base de conhecimento`, `Templates`, `Entregas`
-- **Base de conhecimento do agente** — **não copia** o documento; é um vínculo `AgentKnowledge` → `WorkspaceFile`
+- **Escritório de agentes** — agentes 3D, cada um com “sala” (um Workspace) e pastas padrão: `Prompt`, `Base de conhecimento`, `Templates`, `Entregas`. Painel com abas: Visão, Prompt, Base, Propostas, Histórico, Testar.
+- **Base de conhecimento do agente** — **não copia** o documento; é um vínculo `AgentKnowledge` → `WorkspaceFile`. Continua editável por **Base de conhecimento → Novo arquivo** (editor TipTap).
+- **MCP** — leitura, propostas e escrita via tools; Markdown só na borda MCP; banco permanece TipTap JSON.
 
 ### Comercial (no banco, UI pode estar menos visível no menu atual)
 - Funil: `Stage`, `Opportunity`, `Commercial`
@@ -149,34 +153,34 @@ Trigger `on auth.users insert` → cria `profiles` (assim o seed do admin não e
 ### Conhecimento
 - `workspaces`
 - `workspace_folders` (um nível; sem pasta-dentro-de-pasta)
-- `workspace_files` — `content` = JSON TipTap (`type: "doc"`), `excerpt` texto curto
-- `agents`
+- `workspace_files` — `content` = JSON TipTap (`type: "doc"`), `excerpt` texto curto. **Agora também:** `kind`, `tags[]`, `searchText`, `contentHash`, `indexedAt`, `indexStatus`, `updatedBy`, `source`
+- `agents` — **agora também:** `slug`, `model`, `temperature`, `status`, `activePromptVersionId`, `retrievalConfig`, `capabilities`
 - `agent_knowledge` — N:N agente ↔ arquivo
+- `KnowledgeChunk` — chunks + `embedding vector(1536)` + FTS `tsv`
+- `AgentPromptLayer` / `AgentPromptVersion`
+- `ChangeProposal` / `FileRevision`
+- `McpToken` / `AuditLog`
 
-**Não existem hoje (e o Quick precisa saber):**
-- tags
-- tipo de documento (`contexto`, `passo a passo`, `template`, `processo`, `metodologia`)
-- autor do arquivo
-- embeddings
+**Antes (substituído em 7 nov 2026):** “não existem tags, kind, autor, embeddings”. Passaram a existir na migration `20261107120000_mcp_knowledge`.
 
 ---
 
 ## 4. Tabelas / colunas novas (proposta, para discutir)
 
-Prioridade: **o mínimo para publicar com login**. O resto é fase 2.
+> **7 nov 2026 — Fase 2 feita.** O texto abaixo era a proposta; o que entrou no banco está no §3. Não apagar: serve de histórico.
+
+Prioridade original: **o mínimo para publicar com login**. O resto era fase 2.
 
 ### Fase 1 — publicar
-- `profiles` (acima)
-- `audit_log` (opcional mas barato): `id`, `actor_id`, `action`, `entity`, `entity_id`, `at` — login, create user, delete file
-- `workspace_files.updated_by` uuid? → `profiles.id` (quem editou)
+- `profiles` (acima) — **feito**
+- `audit_log` (opcional mas barato): `id`, `actor_id`, `action`, `entity`, `entity_id`, `at` — **feito** como `AuditLog` (MCP + publish prompt + tokens)
+- `workspace_files.updated_by` uuid? → `profiles.id` (quem editou) — **feito** (`updatedBy`)
 
-### Fase 2 — conhecimento “de verdade” (Quick / MCP)
-- `document_kinds` ou coluna `workspace_files.kind`  
-  enum: `contexto | passo_a_passo | template | processo | metodologia | outro`
-- `workspace_file_tags` (`file_id`, `tag`) **ou** `tags[]` no arquivo
-- `workspace_files.search_text` — texto plano extraído do TipTap (para `ILIKE` / FTS sem embedding)
-- Só **depois**, se a busca semântica for necessária:  
-  `document_embeddings` (`file_id`, `chunk_index`, `embedding vector`, `chunk_text`) + extensão `pgvector`
+### Fase 2 — conhecimento “de verdade” (Quick / MCP) — **feito 7 nov 2026**
+- coluna `WorkspaceFile.kind` (não tabela `document_kinds`)
+- `tags text[]` no arquivo (não tabela N:N)
+- `searchText` + coluna gerada FTS `searchTsv`
+- `KnowledgeChunk` + pgvector 1536 + busca híbrida `match_knowledge`
 
 ### Fase 3 — multi-usuário de verdade
 Hoje o banco é **global** (um cérebro só). Se entrar `member`:
@@ -237,8 +241,8 @@ O Next.js **já é o monólito de API** (`app/api/**`, ~46 rotas). Subir isso pa
 | # | Nome | Agrupa várias coisas | Quando |
 |---|---|---|---|
 | 1 | `admin` | criar/desativar usuário, reset de senha (proxy da Auth Admin) | gestão de usuários |
-| 2 | `knowledge` | listar / buscar (texto) / ler / escrever documento + anexar a agente | MCP / Quick |
-| 3 | `search` | FTS + (futuro) embedding; um único endpoint `q` + `mode` | se a busca ficar pesada |
+| 2 | `knowledge` | **Não criar.** MCP e busca rodam no Next (`/api/mcp`, `/api/knowledge/search`). | — |
+| 3 | `search` | **Não criar.** Função SQL `match_knowledge` no Postgres. | — |
 | 4 | `agents` | orquestrador + chat; um `action` no body | escritório com IA ligada |
 | 5 | `jobs` | cron: excerpt, reindex, limpeza | se precisar de background |
 
@@ -264,15 +268,18 @@ Painel Auth (`disable_signup`) ainda pode aparecer ligado: a service role **não
 
 ## 10. Base de conhecimento + Quick / MCP
 
-Lembrete para o Quick:
+**Feito (7 nov 2026).** Texto antigo (“sem tag, sem kind, sem vetor, sem auth”) está **substituído**.
 
-- Fonte da verdade: `workspace_files.content` (JSON TipTap)
-- “Base do agente” = `agent_knowledge`
-- Sem tag, sem kind, sem vetor
-- API HTTP local hoje: `GET/POST /api/workspaces`, `GET/PATCH /api/workspaces/files/:id`, `GET/POST /api/agents/:id/knowledge`
-- Sem auth hoje → **depois** o MCP precisa de um token de serviço ou da sessão do admin
+- Fonte da verdade: `WorkspaceFile.content` (JSON TipTap). Markdown só na borda MCP / leitura.
+- Base do agente = `AgentKnowledge` (vínculo, não cópia). UI: Base → Novo arquivo → editor.
+- `kind` + `tags[]` + FTS + pgvector; indexação no `PATCH` do arquivo.
+- MCP Streamable HTTP: `https://jaypcortex.vercel.app/api/mcp` (também `/api/mcp/mcp`). Bearer token (hash); escopos `read` / `propose` / `write`.
+- Tools: list/get agents, search_knowledge, read/propose/apply, prompt publish, etc. Ver `docs/mcp-conexao-quick.md`.
+- Prompt em camadas (`kind=prompt` na pasta Prompt) + `AgentPromptVersion` imutável.
+- Propostas: rascunho → aplicar/rejeitar, com diff e `FileRevision`.
+- Agente `migracao-aws` ativo com base MAP.
 
-Plano MCP (não implementar neste documento): stdio TypeScript → HTTP da plataforma (não `INSERT` no SQLite). Busca semântica, se existir, nasce no Postgres (`pgvector`) ou no MCP, **não** como 20 Edge Functions.
+OAuth MCP: **não feito** (não bloqueou). Caminho futuro: `withMcpAuth` / Supabase Auth como IdP.
 
 ---
 
@@ -315,6 +322,9 @@ Variáveis (sem valores aqui):
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | chave pública (ou `NEXT_PUBLIC_SUPABASE_ANON_KEY`) |
 | `SUPABASE_SECRET_KEY` | **só servidor** |
 | `ADMIN_EMAIL` | e-mail do admin |
+| `OPENAI_API_KEY` | opcional; sem ela a busca é só FTS |
+| `MCP_ENABLED` | default `true` |
+| `MCP_BOOTSTRAP_TOKEN` | opcional, só se a UI de tokens falhar |
 
 Não colocar senha. `DATABASE_URL` na Vercel pode ser a mesma do pooler se o Prisma usar `POSTGRES_POOLER_URL`.
 
@@ -328,7 +338,7 @@ No painel Auth do Supabase, Site URL / Redirect URLs devem incluir `https://jayp
 
 1. ~~**IDs:** cuid ou uuid?~~ **Decidido: cuid em `text`**, cópia 1:1.
 2. **Members:** veem o mesmo mundo que o admin, ou cada um tem espaços próprios?
-3. **`kind` + tags** no arquivo já na Fase 1, ou só quando o Quick/MCP precisar?
+3. ~~**`kind` + tags**~~ **Decidido 7 nov 2026:** coluna `kind` + `tags[]` no arquivo, para MCP/busca.
 4. ~~**Anexos de hora extra:**~~ **Decidido: Storage para os novos.** Anexos antigos do SQLite **não sobem**.
 5. ~~**Edge Functions no dia 1:**~~ **Decidido: zero.** Auth e CRUD no Next.
 6. ~~**Onde roda o Next:**~~ **Decidido: Vercel.** Prisma usa o pooler do Supabase.

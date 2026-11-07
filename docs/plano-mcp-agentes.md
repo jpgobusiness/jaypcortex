@@ -356,19 +356,19 @@ Se a CLI da Vercel estiver logada (`.vercel/project.json` existe), usar `vercel 
 5. Agente de Migração ativo com base indexada.
 
 ## 14. Checklist (marcar durante a execução)
-- [ ] E0 leitura + relatório criado
-- [ ] E1 migrations aplicadas
-- [ ] E2 indexação
-- [ ] E3 busca híbrida
-- [ ] E4 prompt em camadas
-- [ ] E5 propostas/revisões
-- [ ] E6 tokens + audit
-- [ ] E7 MCP
-- [ ] E8 UI
-- [ ] E9 agente de migração
-- [ ] E10 testes/build
-- [ ] E11 deploy + teste produção + token
-- [ ] E12 docs atualizados
+- [x] E0 leitura + relatório criado
+- [x] E1 migrations aplicadas
+- [x] E2 indexação
+- [x] E3 busca híbrida
+- [x] E4 prompt em camadas
+- [x] E5 propostas/revisões
+- [x] E6 tokens + audit
+- [x] E7 MCP
+- [x] E8 UI
+- [x] E9 agente de migração
+- [x] E10 testes/build
+- [x] E11 deploy + teste produção + token
+- [x] E12 docs atualizados
 
 ## Histórico
 - 7 nov 2026 — plano criado pelo Amazon Quick.
