@@ -20,7 +20,7 @@
 | `plan_day` `apply` | Exige escopo `write`; sem apply só propõe | — |
 | Purge na UI | Só MCP `admin`; REST da lixeira é GET + restore | Expor DELETE se quiser |
 | Indexação do seed | `indexStatus=skipped` (sem `OPENAI_API_KEY` no ambiente local). FTS português cobre busca. | Rodar `npm run kb:reindex` com a chave na Vercel |
-| Nome na mesa | Cortex Tempo, camisa `#0ea5e9`, óculos | Renomear na UI; slug `gestao-tempo` permanece |
+| Nome na mesa | **Gestor de Atividades** (era Cortex Tempo); slug `gestao-tempo` | Trocar `name` no seed / UI |
 
 ## Bloqueios
 

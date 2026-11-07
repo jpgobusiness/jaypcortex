@@ -1,17 +1,18 @@
 /**
- * Seed idempotente do Cortex Tempo (slug gestao-tempo).
+ * Seed idempotente do Gestor de Atividades (slug gestao-tempo).
  * 7 camadas, 12 docs (9 e 12 gerados do código/banco), 5 templates, vínculos, prompt v1.
  */
 import "dotenv/config";
 import { prisma } from "../lib/prisma";
 import { createAgentWithRoom } from "../lib/agents-db";
-import { ROOM_FOLDERS } from "../lib/agents";
+import { ROOM_FOLDERS, roomName } from "../lib/agents";
 import { upsertFileContent } from "../lib/knowledge/files";
 import { publishPrompt } from "../lib/agents/prompt-composer";
 import { LAYER_LABELS, type PromptLayer } from "../lib/knowledge/kinds";
 import { ACTIVITY_TOOLS, DOCS, LAYERS } from "./data/gestao-tempo-content";
 
 const SLUG = "gestao-tempo";
+const NAME = "Gestor de Atividades";
 
 async function ensureFolder(workspaceId: string, name: string, order: number) {
   const existing = await prisma.workspaceFolder.findFirst({
@@ -99,7 +100,7 @@ async function main() {
 
   if (!agent) {
     const created = await createAgentWithRoom({
-      name: "Cortex Tempo",
+      name: NAME,
       slug: SLUG,
       role: "Coach de Alta Performance e Gestão de Tempo",
       description:
@@ -116,8 +117,8 @@ async function main() {
       const last = await prisma.workspace.findFirst({ orderBy: { order: "desc" }, select: { order: true } });
       const room = await prisma.workspace.create({
         data: {
-          name: "Sala · Cortex Tempo",
-          description: "Sala do agente de gestão de tempo",
+          name: roomName(NAME),
+          description: "Sala do Gestor de Atividades",
           color: "#0ea5e9",
           order: (last?.order ?? -1) + 1,
         },
@@ -127,7 +128,7 @@ async function main() {
       });
       agent = await prisma.agent.create({
         data: {
-          name: "Cortex Tempo",
+          name: NAME,
           slug: SLUG,
           role: "Coach de Alta Performance e Gestão de Tempo",
           description:
@@ -150,7 +151,7 @@ async function main() {
     await prisma.agent.update({
       where: { id: agent.id },
       data: {
-        name: "Cortex Tempo",
+        name: NAME,
         role: "Coach de Alta Performance e Gestão de Tempo",
         status: "active",
         description:
@@ -158,6 +159,12 @@ async function main() {
         capabilities: ACTIVITY_TOOLS as object,
       },
     });
+    if (agent.workspaceId) {
+      await prisma.workspace.update({
+        where: { id: agent.workspaceId },
+        data: { name: roomName(NAME), description: `Sala do agente ${NAME}: base de conhecimento, templates e entregas.` },
+      });
+    }
   }
 
   if (!agent.workspaceId) throw new Error("Agente sem sala");
@@ -233,16 +240,20 @@ async function main() {
     console.log(doc.kind, saved.index?.status, doc.title);
   }
 
-  const versions = await prisma.agentPromptVersion.count({ where: { agentId: agent.id } });
-  if (versions === 0) {
+  const lastPrompt = await prisma.agentPromptVersion.findFirst({
+    where: { agentId: agent.id },
+    orderBy: { version: "desc" },
+    select: { composedPrompt: true, version: true },
+  });
+  if (!lastPrompt || !lastPrompt.composedPrompt.includes(NAME)) {
     const published = await publishPrompt({
       agentId: agent.id,
-      note: "v1 seed Cortex Tempo",
+      note: lastPrompt ? `renomear para ${NAME}` : "v1 seed Gestor de Atividades",
       source: "seed",
     });
     console.log("prompt publicado", published.version, published.id);
   } else {
-    console.log(`prompt já tem ${versions} versão(ões); não republica`);
+    console.log(`prompt v${lastPrompt.version} já usa ${NAME}; não republica`);
   }
 
   const counts = {

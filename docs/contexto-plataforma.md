@@ -6,15 +6,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 7 nov 2026 (atividades no MCP + Cortex Tempo)
+Última atualização: 7 nov 2026 (agente gestao-tempo = Gestor de Atividades)
 
 ## Últimas mudanças
 
-- 7 nov 2026 — **Atividades no MCP** (~30 tools: CRUD, iniciar/pausar/concluir, lixeira, fila, lembretes, briefing/plan_day/revisão) + agente **Cortex Tempo** (`gestao-tempo`, 7 camadas). Redirects ChatGPT na allowlist OAuth. Lógica em `lib/activities` e `lib/briefing`. Ver `docs/mcp-conexao-chatgpt.md` e `docs/relatorio-execucao-gestao-tempo.md`.
+- 7 nov 2026 — Agente `gestao-tempo` renomeado para **Gestor de Atividades** (slug inalterado).
+- 7 nov 2026 — **Atividades no MCP** (~30 tools: CRUD, iniciar/pausar/concluir, lixeira, fila, lembretes, briefing/plan_day/revisão) + agente **Gestor de Atividades** (`gestao-tempo`, 7 camadas). Redirects ChatGPT na allowlist OAuth. Lógica em `lib/activities` e `lib/briefing`. Ver `docs/mcp-conexao-chatgpt.md` e `docs/relatorio-execucao-gestao-tempo.md`.
 - 7 nov 2026 — OAuth MCP completo para o Quick: **serviço a serviço** (`client_id`/`secret` alfanuméricos; token ignora `resource`/`audience`; grant omitido = `client_credentials`) **e autenticação do usuário** (authorization_code + PKCE S256 + refresh 30d, tela de consentimento). `/.well-known/openid-configuration` (o Java do Quick pedia e tomava 404). Credenciais em `docs/.mcp-oauth-amazon-quick.local`.
 - 7 nov 2026 — **MCP da plataforma (não um MCP por agente)** em `https://jaypcortex.vercel.app/api/mcp`. Quick opera todos os agentes. Sem tool de chat/LLM (`ask_agent` ainda não existe). Ver `docs/mcp-conexao-quick.md`.
 - 7 nov 2026 — Base vetorizada (pgvector + FTS), indexação no save, prompt em camadas, Agente MAP (`migracao-aws`). UI: abas do escritório + Tokens MCP em Configurações.
-- 6 nov 2026 — Prisma na Vercel usa `sslmode=no-verify` (o `sslmode=require` do pooler quebrava TLS).
 
 ---
 
@@ -34,13 +34,13 @@
 | Edge Functions | Zero (MCP e indexação no Next/Vercel) |
 | Storage | Bucket privado `overtime-attachments` vazio. Anexos **novos** vão para o Storage. |
 | MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Tools de **atividades + briefing** além de conhecimento. |
-| Agente Tempo | slug `gestao-tempo`, nome provisório **Cortex Tempo**. 7 camadas de prompt (inclui Comportamental), 12 docs + 5 templates, prompt v1. Renomear depois sem trocar o slug. |
+| Agente de atividades | slug `gestao-tempo`, nome **Gestor de Atividades**. 7 camadas de prompt (inclui Comportamental), 12 docs + 5 templates, prompt publicado. |
 | Busca | Híbrida RRF (`match_knowledge`): FTS português + pgvector 1536. Sem `OPENAI_API_KEY` → `indexStatus=skipped`, só FTS. |
 | Chat do agente | **Não existe** tool/rota que chame LLM. Quick “veste” o agente com `get_agent_prompt` + `search_knowledge`. Aba Testar só devolve trechos. |
 | Agente MAP | slug `migracao-aws`, 6 camadas de prompt, 12 docs + 5 templates, prompt v1 publicado. |
 | Páginas | `/login`, `/atividades`, `/controle-diario`, `/desafio`, `/horas-extras`, `/automacoes`, `/configuracoes`, `/usuarios`, `/escritorio`, `/espacos`, `/espacos/[id]`, `/espacos/[id]/arquivos/[id]`. |
 
-Conclusão: app no Postgres + login + **um MCP da plataforma** (conhecimento + atividades) + Agente MAP + Cortex Tempo, publicado na Vercel.
+Conclusão: app no Postgres + login + **um MCP da plataforma** (conhecimento + atividades) + Agente MAP + Gestor de Atividades, publicado na Vercel.
 
 ---
 

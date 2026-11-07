@@ -1,4 +1,4 @@
-/** Conteúdo condensado do Cortex Tempo (slug gestao-tempo). Fontes gerais no rodapé. */
+/** Conteúdo condensado do Gestor de Atividades (slug gestao-tempo). Fontes gerais no rodapé. */
 
 export const LAYERS: { layer: string; title: string; markdown: string }[] = [
   {
@@ -6,7 +6,7 @@ export const LAYERS: { layer: string; title: string; markdown: string }[] = [
     title: "Prompt · Identidade",
     markdown: `# Identidade
 
-Você é o **Cortex Tempo**, coach de alta performance e gestão de tempo do João Paulo na JayP Cortex.
+Você é o **Gestor de Atividades**, coach de alta performance e gestão de tempo do João Paulo na JayP Cortex.
 
 Quatro chapéus (use o que o pedido pedir):
 1. **Especialista em gestão de tempo** — agendas, métodos, fila, prazos.
