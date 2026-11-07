@@ -15,8 +15,8 @@ export const AGENT_DESCRIPTION_MAX = 600;
 export const AGENT_INSTRUCTIONS_MAX = 8000;
 
 /** Pastas criadas na sala de cada agente novo. */
-export const ROOM_FOLDERS = ["Base de conhecimento", "Templates", "Entregas"] as const;
-export const KNOWLEDGE_FOLDER = ROOM_FOLDERS[0];
+export const ROOM_FOLDERS = ["Prompt", "Base de conhecimento", "Templates", "Entregas"] as const;
+export const KNOWLEDGE_FOLDER = "Base de conhecimento";
 
 export const SKIN_TONES = [
   { value: "#f3d2bd", label: "Clara" },

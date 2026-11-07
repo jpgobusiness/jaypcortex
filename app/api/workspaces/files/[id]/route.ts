@@ -11,6 +11,10 @@ import {
   isEditorDocument,
   parseEditorDocument,
 } from "@/lib/workspaces";
+import { isDocumentKind } from "@/lib/knowledge/kinds";
+import { indexFile } from "@/lib/knowledge/indexer";
+import { saveFileRevision } from "@/lib/knowledge/files";
+import { getSessionProfile } from "@/lib/auth";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -82,11 +86,37 @@ export async function PATCH(req: Request, { params }: Ctx) {
       data.order = Math.trunc(order);
     }
 
+    if (body.kind !== undefined) {
+      if (!isDocumentKind(body.kind)) return badRequest("kind inválido");
+      data.kind = body.kind;
+    }
+    if (Array.isArray(body.tags)) {
+      data.tags = body.tags.map((t: unknown) => String(t).trim()).filter(Boolean);
+    }
+
+    const profile = await getSessionProfile();
+    if (profile) data.updatedBy = profile.id;
+    data.source = "ui";
+
     const file = await prisma.workspaceFile.update({
       where: { id },
       data,
       select: fileSummarySelect,
     });
+
+    if (body.content !== undefined || body.title !== undefined) {
+      const full = await prisma.workspaceFile.findUnique({ where: { id } });
+      if (full) {
+        await saveFileRevision({
+          fileId: id,
+          title: full.title,
+          content: full.content,
+          createdBy: profile?.id,
+          source: "ui",
+        });
+        await indexFile(id);
+      }
+    }
     return ok(file);
   } catch (e) {
     return serverError(e);

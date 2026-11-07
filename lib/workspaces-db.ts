@@ -9,6 +9,11 @@ export const fileSummarySelect = {
   title: true,
   excerpt: true,
   order: true,
+  kind: true,
+  tags: true,
+  indexStatus: true,
+  indexedAt: true,
+  source: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.WorkspaceFileSelect;

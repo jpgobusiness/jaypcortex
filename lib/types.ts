@@ -123,6 +123,11 @@ export type WorkspaceFileSummary = {
   title: string;
   excerpt: string;
   order: number;
+  kind?: string;
+  tags?: string[];
+  indexStatus?: string;
+  indexedAt?: string | null;
+  source?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -174,6 +179,8 @@ export type AgentAppearance = {
 export type Agent = AgentAppearance & {
   id: string;
   name: string;
+  slug?: string | null;
+  status?: string;
   role: string;
   description: string;
   instructions: string;
@@ -196,6 +203,8 @@ export type AgentKnowledgeItem = {
   workspaceId: string;
   workspaceName: string;
   folderName: string | null;
+  kind?: string;
+  indexStatus?: string;
   updatedAt: string;
   attachedAt: string;
 };
