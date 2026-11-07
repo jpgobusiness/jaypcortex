@@ -38,8 +38,16 @@ Ver `docs/mcp-conexao-quick.md`.
 Local já validado:
 
 - `npm test` — 11 unitários ok
-- `npx tsx scripts/smoke-search.ts` — hits nos docs de funding
+- `npx tsx scripts/smoke-search.ts` — hits nos docs 5 e 6 de funding
 - `npm run build` — limpo
+
+Produção (`https://jaypcortex.vercel.app`, deploy Ready `jaypcortex-9nr4lcwkl`):
+
+- POST `/api/mcp` sem token → 401
+- `initialize` → server `jaypcortex`
+- `list_agents` → `migracao-aws` active, 17 docs, prompt v1
+- `search_knowledge` (“como maximizar funding do MAP”) → Incentivos + playbook Nuage
+- `propose_new_document` + `apply_proposal` → status `applied`, conteúdo TipTap `type: "doc"` (arquivo “MCP smoke produção”, pode apagar)
 
 ## Log de etapas
 
