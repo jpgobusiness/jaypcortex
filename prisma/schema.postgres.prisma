@@ -543,12 +543,33 @@ model Agent {
   activePromptVersionId String?
   retrievalConfig       Json                 @default("{\"topK\":8,\"minScore\":0.25,\"hybridWeight\":0.6,\"kinds\":[]}")
   capabilities          Json                 @default("[]")
+  routing               Json                 @default("{}")
   knowledge             AgentKnowledge[]
   promptLayers          AgentPromptLayer[]
   promptVersions        AgentPromptVersion[]
   proposals             ChangeProposal[]
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
+}
+
+/// Log do roteador Cortex (Etapa 1, determinístico).
+model CortexRouteLog {
+  id          String   @id @default(cuid())
+  request     String
+  normalized  String   @default("")
+  agentSlug   String?
+  mode        String
+  intentKey   String?
+  confidence  Float
+  reasons     Json     @default("[]")
+  candidates  Json     @default("[]")
+  actorId     String?
+  source      String   @default("mcp")
+  latencyMs   Int?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([agentSlug, createdAt])
 }
 
 /// Perfil 1:1 com auth.users. Criado pelo trigger; role admin só via seed/gestão.
