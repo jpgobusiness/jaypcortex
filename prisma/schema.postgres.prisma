@@ -80,14 +80,15 @@ model Commercial {
 /// Status de atividade configurável (renomear, criar, excluir).
 /// A chave (key) é o valor estável referenciado por Activity.status.
 model ActivityStatus {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  name      String
-  color     String   @default("#6366f1")
-  order     Int      @default(0)
-  isDone    Boolean  @default(false) // marca conclusão (para completedAt, dashboard, checkbox)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  color        String   @default("#6366f1")
+  order        Int      @default(0)
+  isDone       Boolean  @default(false)
+  isInProgress Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([order])
 }
@@ -103,25 +104,105 @@ model ActivityType {
 
 /// Atividade/tarefa, opcionalmente vinculada a uma oportunidade.
 model Activity {
-  id            String        @id @default(cuid())
-  title         String
-  typeId        String?
-  type          ActivityType? @relation(fields: [typeId], references: [id])
-  opportunityId String?
-  opportunity   Opportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
-  status        String        @default("pending") // pending | in_progress | done
-  priority      String        @default("normal") // low | normal | high | urgent
-  dueDate       DateTime?
-  notes         String?
-  completedAt   DateTime?
-  queueOrder    Int? // posição na fila de prioridades (null = fora da fila)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  mapNodes      ActivityMapNode[]
+  id                String        @id @default(cuid())
+  title             String
+  typeId            String?
+  type              ActivityType? @relation(fields: [typeId], references: [id])
+  opportunityId     String?
+  opportunity       Opportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  status            String        @default("pending")
+  priority          String        @default("normal")
+  dueDate           DateTime?
+  notes             String?
+  description       String?
+  completedAt       DateTime?
+  startedAt         DateTime?
+  estimatedMinutes  Int?
+  spentMinutes      Int           @default(0)
+  scheduledStart    DateTime?
+  scheduledEnd      DateTime?
+  importance        Int?
+  urgency           Int?
+  energy            String?
+  context           String?
+  tags              String[]      @default([])
+  area              String?
+  waitingOn         String?
+  parentId          String?
+  parent            Activity?     @relation("ActivitySubtasks", fields: [parentId], references: [id], onDelete: SetNull)
+  children          Activity[]    @relation("ActivitySubtasks")
+  recurrenceRule    String?
+  deletedAt         DateTime?
+  source            String        @default("ui")
+  externalRef       String?
+  clientKey         String?       @unique
+  createdBy         String?       @db.Uuid
+  updatedBy         String?       @db.Uuid
+  queueOrder        Int?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  mapNodes          ActivityMapNode[]
+  events            ActivityEvent[]
+  sessions          ActivitySession[]
+  reminders         ActivityReminder[]
 
   @@index([opportunityId])
   @@index([status])
   @@index([queueOrder])
+  @@index([deletedAt])
+  @@index([dueDate])
+  @@index([scheduledStart])
+  @@index([parentId])
+}
+
+model ActivityEvent {
+  id         String   @id @default(cuid())
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  type       String
+  before     Json?
+  after      Json?
+  actorId    String?
+  source     String   @default("ui")
+  at         DateTime @default(now())
+
+  @@index([activityId, at])
+  @@index([actorId, at])
+}
+
+model ActivitySession {
+  id         String    @id @default(cuid())
+  activityId String
+  activity   Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  minutes    Int?
+  note       String?
+
+  @@index([activityId, startedAt])
+}
+
+model ActivityReminder {
+  id          String    @id @default(cuid())
+  activityId  String
+  activity    Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  remindAt    DateTime
+  channel     String    @default("briefing")
+  message     String    @default("")
+  firedAt     DateTime?
+  dismissedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([activityId, remindAt])
+  @@index([remindAt])
+}
+
+model TimeCapacity {
+  id          String  @id @default(cuid())
+  weekday     Int     @unique
+  workMinutes Int     @default(0)
+  focusStart  String  @default("09:00")
+  focusEnd    String  @default("18:00")
 }
 
 /// Contato disponível para fluxos de automação, como envio de mensagens pelo WhatsApp.
