@@ -1,4 +1,5 @@
 
+- 7 nov 2026 — **Plano aprovado (Etapa 1 do Cortex):** tool MCP `cortex` como porta de entrada (roteamento determinístico + pacote: agente, prompt, conhecimento, dados vivos, tools sugeridas), sem LLM no servidor. Roadmap: Etapa 2 = agente com LLM próprio (1 tarefa); Etapa 3 = Cortex orquestrando vários agentes. Ver `docs/plano-cortex-orquestrador.md`.
 - 7 nov 2026 — **Plano aprovado:** atividades completas no MCP (CRUD, iniciar/pausar/concluir, lixeira, fila, prazos, blocos, lembretes, briefing do dia) + agente **Gestão de Tempo** (`gestao-tempo`, nome provisório Cortex Tempo) + preparo para voz via ChatGPT. Ver `docs/plano-agente-gestao-tempo.md`.
 - 7 nov 2026 — **Amazon Quick conectado ao MCP** (`https://jaypcortex.vercel.app/api/mcp`) via conector `JayPCortexChat` (OAuth de usuário, authorization code + PKCE; só o João tem acesso). Conector serviço a serviço também existe, mas o Quick não permite usá-lo no Chat/Flows (só automação). Pendência: rotacionar o `client_secret` de serviço exposto em print.
 
@@ -6,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 7 nov 2026 (agente gestao-tempo = Gestor de Atividades)
+Última atualização: 7 nov 2026 (Cortex Etapa 1: tool `cortex` + roteador)
 
 ## Últimas mudanças
 
+- 7 nov 2026 — **Cortex Etapa 1:** tool MCP `cortex` (porta de entrada), roteamento determinístico (`lib/cortex`), `Agent.routing` + `CortexRouteLog`, agente Cortex (`slug cortex`, `isOrchestrator`). Sem LLM no servidor. Ver `docs/plano-cortex-orquestrador.md` e `docs/relatorio-execucao-cortex.md`.
 - 7 nov 2026 — Agente `gestao-tempo` renomeado para **Gestor de Atividades** (slug inalterado).
 - 7 nov 2026 — **Atividades no MCP** (~30 tools: CRUD, iniciar/pausar/concluir, lixeira, fila, lembretes, briefing/plan_day/revisão) + agente **Gestor de Atividades** (`gestao-tempo`, 7 camadas). Redirects ChatGPT na allowlist OAuth. Lógica em `lib/activities` e `lib/briefing`. Ver `docs/mcp-conexao-chatgpt.md` e `docs/relatorio-execucao-gestao-tempo.md`.
 - 7 nov 2026 — OAuth MCP completo para o Quick: **serviço a serviço** (`client_id`/`secret` alfanuméricos; token ignora `resource`/`audience`; grant omitido = `client_credentials`) **e autenticação do usuário** (authorization_code + PKCE S256 + refresh 30d, tela de consentimento). `/.well-known/openid-configuration` (o Java do Quick pedia e tomava 404). Credenciais em `docs/.mcp-oauth-amazon-quick.local`.
 - 7 nov 2026 — **MCP da plataforma (não um MCP por agente)** em `https://jaypcortex.vercel.app/api/mcp`. Quick opera todos os agentes. Sem tool de chat/LLM (`ask_agent` ainda não existe). Ver `docs/mcp-conexao-quick.md`.
-- 7 nov 2026 — Base vetorizada (pgvector + FTS), indexação no save, prompt em camadas, Agente MAP (`migracao-aws`). UI: abas do escritório + Tokens MCP em Configurações.
 
 ---
 
@@ -33,14 +34,15 @@
 | Hospedagem | **Vercel** em https://jaypcortex.vercel.app. GitHub `jpgobusiness/jaypcortex`. Node 22. |
 | Edge Functions | Zero (MCP e indexação no Next/Vercel) |
 | Storage | Bucket privado `overtime-attachments` vazio. Anexos **novos** vão para o Storage. |
-| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Tools de **atividades + briefing** além de conhecimento. |
-| Agente de atividades | slug `gestao-tempo`, nome **Gestor de Atividades**. 7 camadas de prompt (inclui Comportamental), 12 docs + 5 templates, prompt publicado. |
+| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Porta de entrada: tool **`cortex`**. Tools de **atividades + briefing** + conhecimento. |
+| Cortex | slug `cortex`, `isOrchestrator=true`, id `cortex-orchestrator`. Roteador determinístico (sem LLM). 4 camadas de prompt, docs “Mapa do escritório” e “Como usar o Cortex”. |
+| Agente de atividades | slug `gestao-tempo`, nome **Gestor de Atividades**. 7 camadas de prompt (inclui Comportamental), 12 docs + 5 templates, prompt publicado. `routing` preenchido. |
 | Busca | Híbrida RRF (`match_knowledge`): FTS português + pgvector 1536. Sem `OPENAI_API_KEY` → `indexStatus=skipped`, só FTS. |
-| Chat do agente | **Não existe** tool/rota que chame LLM. Quick “veste” o agente com `get_agent_prompt` + `search_knowledge`. Aba Testar só devolve trechos. |
-| Agente MAP | slug `migracao-aws`, 6 camadas de prompt, 12 docs + 5 templates, prompt v1 publicado. |
+| Chat do agente | **Não existe** tool/rota que chame LLM. O cliente chama `cortex` e veste `agent_prompt`. Aba Testar só devolve trechos. |
+| Agente MAP | slug `migracao-aws`, 6 camadas de prompt, 12 docs + 5 templates, prompt v1 publicado. `routing` preenchido. |
 | Páginas | `/login`, `/atividades`, `/controle-diario`, `/desafio`, `/horas-extras`, `/automacoes`, `/configuracoes`, `/usuarios`, `/escritorio`, `/espacos`, `/espacos/[id]`, `/espacos/[id]/arquivos/[id]`. |
 
-Conclusão: app no Postgres + login + **um MCP da plataforma** (conhecimento + atividades) + Agente MAP + Gestor de Atividades, publicado na Vercel.
+Conclusão: app no Postgres + login + **um MCP da plataforma** (porta `cortex` + conhecimento + atividades) + Cortex orquestrador + Agente MAP + Gestor de Atividades, publicado na Vercel.
 
 ---
 
@@ -304,18 +306,22 @@ Arquitetura: **um MCP = o escritório Nuage/JayP Cortex**. Amazon Quick conecta 
 - Base do agente = `AgentKnowledge` (vínculo, não cópia). UI: Base → Novo arquivo → editor.
 - `kind` + `tags[]` + FTS + pgvector; indexação no `PATCH` do arquivo.
 - MCP Streamable HTTP: `https://jaypcortex.vercel.app/api/mcp` (também `/api/mcp/mcp`). Header `Authorization: Bearer <token>` — estático `jpc_…` **ou** access token OAuth. Escopos `read` / `propose` / `write` / `admin`.
+- **Porta de entrada:** `cortex` (pedido → agente + prompt + conhecimento + dados vivos + `suggested_tools`). Também `get_agent_context` e `list_agent_tools`. Prompt MCP `cortex_start`.
+- `search_knowledge` / `read_document` / `list_documents` = **só base de conhecimento, não contém tarefas**. Tarefas = `list_activities` / `cortex`.
 - Tools de leitura: `list_agents`, `get_agent`, `get_agent_prompt`, `list_workspaces`, `list_documents`, `read_document`, `search_knowledge`, `list_proposals`, `get_proposal`, `get_document_history`.
 - Tools de rascunho: `propose_document_change`, `propose_new_document`, `propose_prompt_change`, `propose_agent_config`.
 - Tools de escrita: `apply_proposal`, `reject_proposal`, `publish_prompt`, `create_document`, `update_document`, `link_knowledge`, `unlink_knowledge`, `create_agent`, `reindex_document`.
 - Tools de **atividades** (mesmo `/api/mcp`): `list_activities`, `get_activity`, `search_activities`, `get_queue`, `list_activity_statuses`, `list_activity_types`, `get_daily_briefing`, `get_weekly_review`, `plan_day`, `get_activity_history`, `create_activity`, `create_activities_bulk`, `update_activity`, `start_activity`, `pause_activity`, `complete_activity`, `reopen_activity`, `set_activity_status`, `delete_activity`, `restore_activity`, `queue_activity`, `unqueue_activity`, `move_in_queue`, `reorder_queue`, `reschedule_activity`, `add_reminder`, `dismiss_reminder`, `add_subtask`, `create_activity_type`, `undo_last_action`, `purge_deleted_activities` (admin).
-- Prompts MCP: `briefing_do_dia`, `capturar_tarefas`.
+- Prompts MCP: `cortex_start`, `briefing_do_dia`, `capturar_tarefas`.
 - Agenda Outlook: **não** integrada nesta rodada. O cliente envia `busy_blocks`. Graph direto = futuro.
 - Voz: caminho recomendado **ChatGPT → MCP direto** (não GPT → Quick → Cortex). `client_key` evita duplicar ditado. Doc: `docs/mcp-conexao-chatgpt.md`.
 - Prompt em camadas (`kind=prompt` na pasta Prompt) + `AgentPromptVersion` imutável.
 - Propostas: rascunho → aplicar/rejeitar, com diff e `FileRevision`.
 - Agente `migracao-aws` ativo com base MAP.
 - OAuth MCP: **feito** — `client_credentials` (serviço a serviço) e `authorization_code` + PKCE S256 + refresh (autenticação do usuário, tela de consentimento). Discovery RFC 8414 + `openid-configuration`. Clientes no script `npm run mcp:oauth-client`.
-- **Não feito:** `ask_agent` / chat que chama LLM no servidor. Quick usa prompt + busca e responde ele mesmo.
+- **Não feito (Etapa 2):** agente com LLM próprio executando 1 tarefa (ex.: briefing automático do Tempo).
+- **Não feito (Etapa 3):** Cortex orquestrando vários agentes com debate controlado, limites de passos/custo, propostas para ações críticas e registro de execuções.
+- **Não feito:** `ask_agent` / chat que chama LLM no servidor. Quick/GPT usam `cortex` + prompt + tools e respondem eles mesmos.
 
 Conexão: `docs/mcp-conexao-quick.md`. Segredo/token em claro nunca no git.
 
@@ -402,7 +408,7 @@ Fase 1 em execução, por etapas (parar e esperar “ok” entre elas):
 
 Edge Functions: zero. `kind`/tags, MCP, busca e embeddings: **feitos** (FTS sempre; vetor se houver `OPENAI_API_KEY`).
 
-Depois (ainda não): chat/`ask_agent` no servidor, 3–5 Edge Functions-roteador (só se precisar; hoje o Next cobre). OAuth MCP **feito**.
+Depois (ainda não): Etapa 2 = LLM no agente (1 tarefa); Etapa 3 = Cortex orquestrando vários agentes. Edge Functions-roteador só se precisar (hoje o Next cobre). OAuth MCP **feito**.
 
 ---
 
@@ -416,6 +422,6 @@ Depois (ainda não): chat/`ask_agent` no servidor, 3–5 Edge Functions-roteador
 - Não gravar TipTap como Markdown no banco. Markdown só na borda MCP.
 - pgvector + FTS **já existem**. Sem `OPENAI_API_KEY` a busca é só FTS.
 - Preferir as tools MCP (propor → aplicar) a escrever no Postgres direto.
-- Não assumir que o MCP chama o LLM do agente; para “conversar”, use `get_agent_prompt` + `search_knowledge`.
+- Não assumir que o MCP chama o LLM do agente. Para qualquer pedido, chame **`cortex` primeiro**. `search_knowledge` não lista tarefas.
 
 Se Quick e Cursor divergirem: **este markdown vence** até a gente editar a §13.

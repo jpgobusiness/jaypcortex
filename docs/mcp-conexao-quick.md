@@ -75,11 +75,40 @@ MCP_URL=https://jaypcortex.vercel.app/api/mcp MCP_TOKEN=jpc_... npx tsx scripts/
 
 ---
 
+## Porta de entrada: `cortex`
+
+O cliente (Quick) é quem pensa. **Chame `cortex` primeiro** em qualquer pedido (tarefas, agenda, MAP, metodologia, agentes). A tool devolve o agente, o prompt, trechos da base, dados vivos e `suggested_tools` para executar em seguida.
+
+`search_knowledge` / `read_document` / `list_documents` são **só a base de conhecimento**. Não contêm tarefas. Tarefas = `list_activities` / `search_activities` / `get_daily_briefing` (ou o que `cortex` sugerir).
+
+Prompt MCP: `cortex_start`.
+
+Fluxo:
+
+1. `cortex` com o pedido (e `busy_blocks` se houver agenda).
+2. Responder vestindo `agent_prompt`.
+3. Executar `suggested_tools` em ordem.
+4. Confirmar com o usuário as que tiverem `requires_confirmation`.
+5. Resposta curta, pronta para voz.
+
+## Após deploy com tools novas: atualizar/recriar as tools do conector no Quick
+
+O conector do Quick **guarda a lista de tools no momento em que foi criado**. Deploy na Vercel **não** atualiza essa lista sozinho.
+
+Depois de um deploy que adiciona tools (`cortex`, atividades, etc.):
+
+1. No Quick, abra o conector `JayPCortexChat` (ou o que estiver em uso).
+2. Atualize / recarregue as tools do MCP (ou apague e recrie o conector com a mesma URL `https://jaypcortex.vercel.app/api/mcp` e o mesmo OAuth).
+3. Confira se `cortex`, `list_activities` e `get_daily_briefing` aparecem na lista. Se só houver as ~23 de conhecimento, a lista está velha.
+4. Teste: “lista minhas atividades” deve chamar `cortex` (ou `list_activities`), **nunca** `search_knowledge`.
+
+Sem este passo, o Quick continua caindo na base de conhecimento e ignorando as tools novas.
+
 ## Escopos
 
 | Escopo | Tools |
 |---|---|
-| `read` | list/get agents, documents, search, proposals, history; **atividades** (list/get/search/queue/statuses/types); `get_daily_briefing`, `get_weekly_review`, `plan_day` (sem apply), `get_activity_history` |
+| `read` | `cortex`, `get_agent_context`, `list_agent_tools`; list/get agents, documents, search, proposals, history; **atividades** (list/get/search/queue/statuses/types); `get_daily_briefing`, `get_weekly_review`, `plan_day` (sem apply), `get_activity_history` |
 | `propose` | propose_* |
 | `write` | apply/reject, create/update document, publish_prompt, link/unlink, create_agent, reindex; **atividades** (criar/editar/iniciar/pausar/concluir/fila/lembretes/undo); `plan_day` com `apply=true` |
 | `admin` | todos, inclusive `purge_deleted_activities` |
@@ -91,4 +120,4 @@ Rate limit: 60 req/min por token.
 - Não grava Markdown no banco (converte para TipTap `type: "doc"`).
 - Não abre signup, não apaga `dev.db`, não cria Edge Function.
 - Sem `OPENAI_API_KEY`: busca só FTS.
-- Sem `ask_agent` / chat com LLM no servidor.
+- Sem `ask_agent` / chat com LLM no servidor. Roteamento Cortex é determinístico.

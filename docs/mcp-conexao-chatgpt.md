@@ -25,11 +25,13 @@ Escopos: `read` (briefing, lista) · `write` (criar/iniciar/concluir) · `admin`
 
 1. Apps / conectores MCP → URL `https://jaypcortex.vercel.app/api/mcp`.
 2. Autorizar com o login da JayP Cortex (o mesmo `/login`).
-3. Vestir o agente: `get_agent_prompt` com slug `gestao-tempo` (Gestor de Atividades) + tools de atividade.
-4. No ditado, a tool `create_activity` deve ir com `client_key` estável. Repetir o comando não duplica.
+3. **Porta de entrada:** chame `cortex` com o pedido (e `busy_blocks` se tiver agenda). Não use `search_knowledge` para listar tarefas.
+4. Vista `agent_prompt` do pacote. Execute `suggested_tools` em ordem; confirme as que tiverem `requires_confirmation`.
+5. No ditado, `create_activity` deve ir com `client_key` estável. Repetir o comando não duplica.
 
 ## Prompts MCP úteis
 
+- `cortex_start` — fluxo padrão (cortex → prompt → tools)
 - `briefing_do_dia`
 - `capturar_tarefas`
 
