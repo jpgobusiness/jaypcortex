@@ -1,10 +1,10 @@
-import { listActivities } from "@/lib/activities/service";
+import { listActivitiesPage } from "@/lib/activities/service";
 import { getDailyBriefing, type BusyBlock } from "@/lib/briefing/briefing";
 import { normalize } from "@/lib/cortex/normalize";
 
 function inferListFilters(request: string) {
   const n = normalize(request);
-  const filters: Parameters<typeof listActivities>[0] = { status: "open", sort: "score", limit: 15 };
+  const filters: Parameters<typeof listActivitiesPage>[0] = { status: "open", sort: "score", limit: 20 };
   if (/\batrasad/.test(n)) filters.due = "overdue";
   else if (/\bhoje\b/.test(n)) filters.due = "today";
   else if (/\bsemana\b/.test(n)) filters.due = "this_week";
@@ -29,10 +29,14 @@ function summarizeBriefing(briefing: Awaited<ReturnType<typeof getDailyBriefing>
 
 export async function liveGestaoTempo(request: string, opts: { date?: Date; busyBlocks?: BusyBlock[] }) {
   const briefing = await getDailyBriefing(opts.date, opts.busyBlocks ?? []);
-  const activities = await listActivities(inferListFilters(request));
+  const page = await listActivitiesPage(inferListFilters(request));
   return {
     briefing: summarizeBriefing(briefing),
-    activities: activities.map((a) => ({
+    total: page.total,
+    truncated: page.truncated,
+    counts: page.counts,
+    note: page.note,
+    activities: page.activities.map((a) => ({
       id: a.id,
       title: a.title,
       status: a.status,

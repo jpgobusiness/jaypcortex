@@ -12,7 +12,7 @@ import {
   getActivity,
   getHistory,
   getQueue,
-  listActivities,
+  listActivitiesPage,
   listStatuses,
   listTypes,
   pauseActivity,
@@ -88,7 +88,7 @@ export function registerActivityTools(
 
   server.registerTool("list_activities", {
     ...readMeta("Listar tarefas"),
-    description: "Dados vivos de tarefas (seção Atividades). Lista tarefas. Filtros: status (key|open|done|all), priority, due (overdue|today|tomorrow|this_week|next_7d|no_date), type, tags, area, q, in_queue, include_deleted, sort (score|due|created|queue). Não use search_knowledge para isso.",
+    description: "Dados vivos de tarefas (seção Atividades). Padrão: pendentes (status=open). NÃO trate o tamanho da lista como o total — use os campos total, truncated e counts. Se truncated=true, há mais. Filtros: status (key|open|done|all), priority, due (overdue|today|tomorrow|this_week|next_7d|no_date), type, tags, area, q, in_queue, include_deleted, sort (score|due|created|queue). Não use search_knowledge para isso.",
     inputSchema: z.object({
       status: z.string().optional(),
       priority: z.string().optional(),
@@ -104,16 +104,16 @@ export function registerActivityTools(
     }),
   }, async (args) => {
     assertScope(ctx.scopes, "read");
-    return wrap(() => listActivities({
-      status: args.status ? String(args.status) : undefined,
+    return wrap(() => listActivitiesPage({
+      status: args.status ? String(args.status) : "open",
       priority: args.priority ? String(args.priority) : undefined,
       due: args.due ? String(args.due) : undefined,
       type: args.type ? String(args.type) : undefined,
       tags: Array.isArray(args.tags) ? args.tags.map(String) : undefined,
       area: args.area ? String(args.area) : undefined,
       q: args.q ? String(args.q) : undefined,
-      in_queue: Boolean(args.in_queue),
-      include_deleted: Boolean(args.include_deleted),
+      in_queue: args.in_queue === true,
+      include_deleted: args.include_deleted === true,
       sort: args.sort ? String(args.sort) : "score",
       limit: typeof args.limit === "number" ? args.limit : 20,
     }));
@@ -130,20 +130,28 @@ export function registerActivityTools(
 
   server.registerTool("search_activities", {
     ...readMeta("Buscar tarefas"),
-    description: "Dados vivos de tarefas (seção Atividades). Busca textual por título/descrição/notas (ex.: 'proposta Vero'). Não use search_knowledge para achar tarefa.",
+    description: "Dados vivos de tarefas (seção Atividades). Busca textual por título/descrição/notas (ex.: 'proposta Vero'). Use total/truncated; não trate a página como o universo. Não use search_knowledge para achar tarefa.",
     inputSchema: z.object({ q: z.string(), limit: z.number().optional() }),
   }, async (args) => {
     assertScope(ctx.scopes, "read");
-    return wrap(() => listActivities({ q: String(args.q), limit: typeof args.limit === "number" ? args.limit : 10, sort: "score" }));
+    return wrap(() => listActivitiesPage({ q: String(args.q), limit: typeof args.limit === "number" ? args.limit : 10, sort: "score", status: "all" }));
   });
 
   server.registerTool("get_queue", {
     ...readMeta("Ver fila"),
-    description: "Dados vivos de tarefas (seção Atividades). Fila de execução em ordem.",
+    description: "Dados vivos de tarefas (seção Atividades). Fila de execução em ordem. Resposta tem queue + total. A fila não é o total de pendentes.",
     inputSchema: z.object({}),
   }, async () => {
     assertScope(ctx.scopes, "read");
-    return wrap(() => getQueue());
+    return wrap(async () => {
+      const queue = await getQueue();
+      return {
+        queue,
+        total: queue.length,
+        truncated: false,
+        note: `Fila com ${queue.length} item(ns). Estas são todas as da fila — pendentes fora da fila não entram aqui.`,
+      };
+    });
   });
 
   server.registerTool("list_activity_statuses", {

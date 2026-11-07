@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { writeAudit } from "@/lib/mcp/audit";
 import { MCP_ISSUER } from "@/lib/mcp/http";
 import { addDaysCivil, civilUtc, daysUntilDue, formatLocalDate, nextDueFromRrule, parseDatePhrase, zonedParts } from "./dates";
+import { activityPageEnvelope } from "./page";
 import { scoreActivity } from "./priority";
 
 export type Actor = { actorId?: string | null; source?: string };
@@ -175,7 +176,7 @@ async function searchIds(q: string, limit: number, includeDeleted?: boolean): Pr
   return rows.map((r) => r.id);
 }
 
-export async function listActivities(opts: {
+export type ListActivitiesOpts = {
   status?: string;
   priority?: string;
   due?: string;
@@ -188,11 +189,17 @@ export async function listActivities(opts: {
   sort?: string;
   limit?: number;
   parentId?: string | null;
-}) {
+};
+
+export async function listActivities(opts: ListActivitiesOpts) {
+  const page = await listActivitiesPage(opts);
+  return page.activities;
+}
+
+export async function listActivitiesPage(opts: ListActivitiesOpts) {
   const st = await statuses();
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 100);
-  const now = new Date();
-  const today = now;
+  const today = new Date();
   const where: Record<string, unknown> = {};
   if (!opts.include_deleted) where.deletedAt = null;
   if (opts.parentId !== undefined) where.parentId = opts.parentId;
@@ -206,18 +213,16 @@ export async function listActivities(opts: {
     });
     if (t) where.typeId = t.id;
   }
+  const doneKeys = st.all.filter((s) => s.isDone).map((s) => s.key);
   if (opts.status === "open") {
-    const doneKeys = st.all.filter((s) => s.isDone).map((s) => s.key);
     where.status = { notIn: doneKeys };
   } else if (opts.status === "done") {
-    const doneKeys = st.all.filter((s) => s.isDone).map((s) => s.key);
     where.status = { in: doneKeys };
   } else if (opts.status && opts.status !== "all") {
     where.status = opts.status;
   }
   if (opts.due === "overdue") {
     where.dueDate = { lt: civilStart(today) };
-    const doneKeys = st.all.filter((s) => s.isDone).map((s) => s.key);
     where.status = { notIn: doneKeys };
   } else if (opts.due === "today") {
     where.dueDate = { gte: civilStart(today), lt: civilStart(today, 1) };
@@ -229,7 +234,7 @@ export async function listActivities(opts: {
     where.dueDate = null;
   }
   if (opts.q) {
-    const ids = await searchIds(opts.q, limit, opts.include_deleted);
+    const ids = await searchIds(opts.q, Math.min(limit * 5, 200), opts.include_deleted);
     where.id = { in: ids.length ? ids : ["__none__"] };
   }
   const order =
@@ -240,15 +245,28 @@ export async function listActivities(opts: {
         : opts.sort === "created"
           ? [{ createdAt: "desc" as const }]
           : [{ queueOrder: "asc" as const }, { dueDate: "asc" as const }, { createdAt: "desc" as const }];
-  const rows = await prisma.activity.findMany({
-    where,
-    include: INCLUDE,
-    orderBy: order,
-    take: opts.sort === "score" ? Math.min(limit * 3, 200) : limit,
-  });
+  const live = { deletedAt: null as null };
+  const [rows, total, open, done, in_queue] = await Promise.all([
+    prisma.activity.findMany({
+      where,
+      include: INCLUDE,
+      orderBy: order,
+      take: opts.sort === "score" ? Math.min(limit * 3, 200) : limit,
+    }),
+    prisma.activity.count({ where }),
+    prisma.activity.count({ where: { ...live, status: { notIn: doneKeys.length ? doneKeys : ["done"] } } }),
+    prisma.activity.count({ where: { ...live, status: { in: doneKeys.length ? doneKeys : ["done"] } } }),
+    prisma.activity.count({ where: { ...live, queueOrder: { not: null } } }),
+  ]);
   const presented = rows.map((r) => present(r, st.byKey.get(r.status)));
   if (opts.sort === "score") presented.sort((a, b) => b.score - a.score);
-  return presented.slice(0, limit);
+  return activityPageEnvelope({
+    activities: presented.slice(0, limit),
+    total,
+    limit,
+    status: opts.status,
+    counts: { open, done, in_queue },
+  });
 }
 
 function civilStart(now: Date, plusDays = 0) {

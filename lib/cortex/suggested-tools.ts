@@ -30,7 +30,7 @@ function queryGuess(request: string) {
 
 function listArgs(request: string) {
   const n = normalize(request);
-  const args: Record<string, unknown> = { status: "open", sort: "score", limit: 15 };
+  const args: Record<string, unknown> = { status: "open", sort: "score", limit: 50 };
   if (/\batrasad/.test(n)) args.due = "overdue";
   else if (/\bhoje\b/.test(n)) args.due = "today";
   else if (/\bsemana\b/.test(n)) args.due = "this_week";

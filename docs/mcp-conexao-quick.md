@@ -106,6 +106,8 @@ Sem este passo, o Quick continua caindo na base de conhecimento e ignorando as t
 
 Toda tool do MCP declara `title` em PT-BR e `annotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`). `plan_day` é só leitura; para gravar o plano use `apply_day_plan` (`plan_day` com `apply=true` ainda funciona por compatibilidade).
 
+`list_activities` **não devolve um array cru**. Padrão = pendentes (`status=open`). A resposta tem `activities`, `total`, `truncated`, `counts` (`open` / `done` / `in_queue`) e `note`. O cliente **não** deve tratar `activities.length` como o universo — se `truncated=true`, há mais. Para concluídas: `status=done`. Para tudo: `status=all`. `get_queue` devolve a fila completa (`queue` + `total`); fila ≠ total de pendentes.
+
 ## Escopos
 
 | Escopo | Tools |

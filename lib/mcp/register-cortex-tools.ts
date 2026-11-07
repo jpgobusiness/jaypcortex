@@ -17,7 +17,7 @@ function assertScope(scopes: string[], needed: McpScope | McpScope[]) {
 }
 
 const TOOL_GUIDE: Record<string, string> = {
-  list_activities: "Listar tarefas vivas. Nunca use search_knowledge para isso.",
+  list_activities: "Listar tarefas vivas. Padrão pendentes. Use total/counts; não trate a página como o universo. Nunca use search_knowledge para isso.",
   get_activity: "Detalhe de uma tarefa (id ou query).",
   search_activities: "Buscar tarefa por título/texto.",
   get_queue: "Fila de execução.",

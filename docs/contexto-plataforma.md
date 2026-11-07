@@ -7,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 7 nov 2026 (MCP: annotations + apply_day_plan)
+Última atualização: 7 nov 2026 (MCP: list_activities com total)
 
 ## Últimas mudanças
 
+- 7 nov 2026 — `list_activities` padrão = pendentes (`status=open`) e devolve `{ activities, total, truncated, counts, note }`. Evita o cliente tratar a página (limit 20) como o universo. `search_activities` e `get_queue` também trazem total.
 - 7 nov 2026 — Tools MCP com `title` PT-BR e annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`). `plan_day` só lê; `apply_day_plan` grava. Após deploy: Customize → Connectors → JayPCortexChat → permissões. Ver `docs/mcp-conexao-quick.md`.
 - 7 nov 2026 — **Cortex Etapa 1:** tool MCP `cortex` (porta de entrada), roteamento determinístico (`lib/cortex`), `Agent.routing` + `CortexRouteLog`, agente Cortex (`slug cortex`, `isOrchestrator`). Sem LLM no servidor. Ver `docs/plano-cortex-orquestrador.md` e `docs/relatorio-execucao-cortex.md`.
 - 7 nov 2026 — Agente `gestao-tempo` renomeado para **Gestor de Atividades** (slug inalterado).
 - 7 nov 2026 — **Atividades no MCP** (~30 tools: CRUD, iniciar/pausar/concluir, lixeira, fila, lembretes, briefing/plan_day/revisão) + agente **Gestor de Atividades** (`gestao-tempo`, 7 camadas). Redirects ChatGPT na allowlist OAuth. Lógica em `lib/activities` e `lib/briefing`. Ver `docs/mcp-conexao-chatgpt.md` e `docs/relatorio-execucao-gestao-tempo.md`.
-- 7 nov 2026 — OAuth MCP completo para o Quick: **serviço a serviço** (`client_id`/`secret` alfanuméricos; token ignora `resource`/`audience`; grant omitido = `client_credentials`) **e autenticação do usuário** (authorization_code + PKCE S256 + refresh 30d, tela de consentimento). `/.well-known/openid-configuration` (o Java do Quick pedia e tomava 404). Credenciais em `docs/.mcp-oauth-amazon-quick.local`.
 
 ---
 
@@ -34,7 +34,7 @@
 | Hospedagem | **Vercel** em https://jaypcortex.vercel.app. GitHub `jpgobusiness/jaypcortex`. Node 22. |
 | Edge Functions | Zero (MCP e indexação no Next/Vercel) |
 | Storage | Bucket privado `overtime-attachments` vazio. Anexos **novos** vão para o Storage. |
-| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Porta de entrada: tool **`cortex`**. Tools com `title` PT-BR + annotations. `plan_day` lê; `apply_day_plan` grava. |
+| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Porta de entrada: tool **`cortex`**. Tools com `title` PT-BR + annotations. `plan_day` lê; `apply_day_plan` grava. `list_activities` padrão pendentes + `total`/`truncated`/`counts`. |
 | Cortex | slug `cortex`, `isOrchestrator=true`, id `cortex-orchestrator`. Roteador determinístico (sem LLM). 4 camadas de prompt, docs “Mapa do escritório” e “Como usar o Cortex”. |
 | Agente de atividades | slug `gestao-tempo`, nome **Gestor de Atividades**. 7 camadas de prompt (inclui Comportamental), 12 docs + 5 templates, prompt publicado. `routing` preenchido. |
 | Busca | Híbrida RRF (`match_knowledge`): FTS português + pgvector 1536. Sem `OPENAI_API_KEY` → `indexStatus=skipped`, só FTS. |
@@ -311,7 +311,7 @@ Arquitetura: **um MCP = o escritório Nuage/JayP Cortex**. Amazon Quick conecta 
 - Tools de leitura: `list_agents`, `get_agent`, `get_agent_prompt`, `list_workspaces`, `list_documents`, `read_document`, `search_knowledge`, `list_proposals`, `get_proposal`, `get_document_history`.
 - Tools de rascunho: `propose_document_change`, `propose_new_document`, `propose_prompt_change`, `propose_agent_config`.
 - Tools de escrita: `apply_proposal`, `reject_proposal`, `publish_prompt`, `create_document`, `update_document`, `link_knowledge`, `unlink_knowledge`, `create_agent`, `reindex_document`.
-- Tools de **atividades** (mesmo `/api/mcp`): `list_activities`, `get_activity`, `search_activities`, `get_queue`, `list_activity_statuses`, `list_activity_types`, `get_daily_briefing`, `get_weekly_review`, `plan_day` (leitura), `apply_day_plan` (escrita), `get_activity_history`, `create_activity`, `create_activities_bulk`, `update_activity`, `start_activity`, `pause_activity`, `complete_activity`, `reopen_activity`, `set_activity_status`, `delete_activity`, `restore_activity`, `queue_activity`, `unqueue_activity`, `move_in_queue`, `reorder_queue`, `reschedule_activity`, `add_reminder`, `dismiss_reminder`, `add_subtask`, `create_activity_type`, `undo_last_action`, `purge_deleted_activities` (admin).
+- Tools de **atividades** (mesmo `/api/mcp`): `list_activities` (padrão `status=open`; resposta `{ activities, total, truncated, counts, note }`), `get_activity`, `search_activities`, `get_queue` (`queue` + `total`), `list_activity_statuses`, `list_activity_types`, `get_daily_briefing`, `get_weekly_review`, `plan_day` (leitura), `apply_day_plan` (escrita), `get_activity_history`, `create_activity`, `create_activities_bulk`, `update_activity`, `start_activity`, `pause_activity`, `complete_activity`, `reopen_activity`, `set_activity_status`, `delete_activity`, `restore_activity`, `queue_activity`, `unqueue_activity`, `move_in_queue`, `reorder_queue`, `reschedule_activity`, `add_reminder`, `dismiss_reminder`, `add_subtask`, `create_activity_type`, `undo_last_action`, `purge_deleted_activities` (admin).
 - Toda tool MCP declara `title` em PT-BR e `annotations` (hints: `readOnlyHint`, `destructiveHint`, `idempotentHint`).
 - Prompts MCP: `cortex_start`, `briefing_do_dia`, `capturar_tarefas`.
 - Agenda Outlook: **não** integrada nesta rodada. O cliente envia `busy_blocks`. Graph direto = futuro.

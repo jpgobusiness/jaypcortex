@@ -1,4 +1,4 @@
-import { listActivities } from "@/lib/activities/service";
+import { listActivitiesPage } from "@/lib/activities/service";
 import { normalize } from "@/lib/cortex/normalize";
 
 function queryFromRequest(request: string) {
@@ -12,10 +12,14 @@ function queryFromRequest(request: string) {
 
 export async function liveMigracaoAws(request: string) {
   const q = queryFromRequest(request);
-  const activities = await listActivities({ q, status: "open", sort: "score", limit: 10 });
+  const page = await listActivitiesPage({ q, status: "open", sort: "score", limit: 10 });
   return {
     theme_query: q,
-    activities: activities.map((a) => ({
+    total: page.total,
+    truncated: page.truncated,
+    counts: page.counts,
+    note: page.note,
+    activities: page.activities.map((a) => ({
       id: a.id,
       title: a.title,
       status: a.status,

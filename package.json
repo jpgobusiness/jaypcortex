@@ -24,10 +24,11 @@
     "test:mcp-knowledge": "tsx scripts/test-mcp-knowledge-regression.ts",
     "test:mcp-cortex": "tsx scripts/test-mcp-cortex.ts",
     "test:mcp-annotations": "tsx scripts/test-mcp-annotations.ts",
+    "test:mcp-list-page": "tsx scripts/test-mcp-list-page.ts",
     "mcp:stdio": "tsx scripts/mcp-stdio.ts",
     "mcp:token": "tsx scripts/create-mcp-token.ts",
     "mcp:oauth-client": "tsx scripts/create-mcp-oauth-client.ts",
-    "test": "node --import tsx --test lib/knowledge/hash.test.ts lib/knowledge/tiptap-text.test.ts lib/knowledge/chunking.test.ts lib/knowledge/markdown.test.ts lib/agents/prompt-composer.test.ts lib/proposals/diff.test.ts lib/mcp/oauth.test.ts lib/mcp/annotations.test.ts lib/activities/dates.test.ts lib/activities/priority.test.ts lib/activities/service.test.ts lib/briefing/briefing.test.ts lib/cortex/router.test.ts"
+    "test": "node --import tsx --test lib/knowledge/hash.test.ts lib/knowledge/tiptap-text.test.ts lib/knowledge/chunking.test.ts lib/knowledge/markdown.test.ts lib/agents/prompt-composer.test.ts lib/proposals/diff.test.ts lib/mcp/oauth.test.ts lib/mcp/annotations.test.ts lib/activities/dates.test.ts lib/activities/priority.test.ts lib/activities/service.test.ts lib/activities/page.test.ts lib/briefing/briefing.test.ts lib/cortex/router.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
