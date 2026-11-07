@@ -18,10 +18,12 @@
     "db:seed-admin": "tsx scripts/seed-admin.ts",
     "kb:reindex": "tsx scripts/kb-reindex.ts",
     "seed:migracao-aws": "tsx scripts/seed-agent-migracao.ts",
+    "seed:gestao-tempo": "tsx scripts/seed-agent-gestao-tempo.ts",
+    "test:mcp-gestao-tempo": "tsx scripts/test-mcp-gestao-tempo.ts",
     "mcp:stdio": "tsx scripts/mcp-stdio.ts",
     "mcp:token": "tsx scripts/create-mcp-token.ts",
     "mcp:oauth-client": "tsx scripts/create-mcp-oauth-client.ts",
-    "test": "node --import tsx --test lib/knowledge/hash.test.ts lib/knowledge/tiptap-text.test.ts lib/knowledge/chunking.test.ts lib/knowledge/markdown.test.ts lib/agents/prompt-composer.test.ts lib/proposals/diff.test.ts lib/mcp/oauth.test.ts"
+    "test": "node --import tsx --test lib/knowledge/hash.test.ts lib/knowledge/tiptap-text.test.ts lib/knowledge/chunking.test.ts lib/knowledge/markdown.test.ts lib/agents/prompt-composer.test.ts lib/proposals/diff.test.ts lib/mcp/oauth.test.ts lib/activities/dates.test.ts lib/activities/priority.test.ts lib/activities/service.test.ts lib/briefing/briefing.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
