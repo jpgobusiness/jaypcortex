@@ -36,12 +36,14 @@ async function call(url: string, token: string, method: string, params: Record<s
   return json.result;
 }
 
-function parseToolText(result: { content?: { text?: string }[] }) {
+function parseToolText(result: { content?: { text?: string }[]; isError?: boolean }) {
   const raw = result.content?.[0]?.text || "{}";
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    if (result.isError && !parsed.error) return { error: raw, ...parsed };
+    return parsed;
   } catch {
-    return { raw };
+    return result.isError ? { error: raw } : { raw };
   }
 }
 
@@ -75,11 +77,24 @@ async function main() {
   }
 
   await call(url, token, "tools/call", { name: "complete_activity", arguments: { id } });
-  const del = parseToolText(await call(url, token, "tools/call", { name: "delete_activity", arguments: { id } }));
+  let del: { error?: unknown };
+  try {
+    del = parseToolText(await call(url, token, "tools/call", { name: "delete_activity", arguments: { id } }));
+  } catch (err) {
+    del = { error: err instanceof Error ? err.message : String(err) };
+  }
   if (!del.error) throw new Error("delete sem confirm deveria falhar");
   await call(url, token, "tools/call", { name: "delete_activity", arguments: { id, confirm: true } });
   const purged = parseToolText(await call(url, token, "tools/call", { name: "purge_deleted_activities", arguments: { ids: [id] } }));
-  console.log("purged", purged);
+  if (purged.error) {
+    console.warn("purge MCP:", purged.error, "— limpando [TESTE MCP] via Prisma");
+    const { prisma } = await import("../lib/prisma");
+    const gone = await prisma.activity.deleteMany({ where: { title: { startsWith: "[TESTE MCP]" } } });
+    console.log("purged via prisma", gone.count);
+    await prisma.$disconnect();
+  } else {
+    console.log("purged", purged);
+  }
   console.log("OK");
 }
 

@@ -325,7 +325,7 @@ export function registerActivityTools(
   act("complete_activity", "Conclui, sai da fila, gera próxima se recorrente", async (id) => (await completeActivity(id, actorOf(ctx))).presented);
   act("reopen_activity", "Reabre para pendente", async (id) => (await reopenActivity(id, actorOf(ctx))).presented);
   act("set_activity_status", "Muda status por key", async (id, args) => (await setActivityStatus(id, String(args.status), actorOf(ctx))).presented, { status: z.string() });
-  act("delete_activity", "Lixeira (soft delete). Exige confirm=true.", async (id, args) => (await softDelete(id, actorOf(ctx), Boolean(args.confirm))).presented, { confirm: z.boolean() });
+  act("delete_activity", "Lixeira (soft delete). Exige confirm=true.", async (id, args) => (await softDelete(id, actorOf(ctx), args.confirm === true)).presented, { confirm: z.boolean().optional() });
   act("restore_activity", "Tira da lixeira", async (id) => (await restoreActivity(id, actorOf(ctx))).presented);
   act("queue_activity", "Coloca na fila", async (id, args) => queueAdd([id], typeof args.position === "number" ? args.position : undefined, actorOf(ctx)), { position: z.number().optional() });
   act("unqueue_activity", "Tira da fila", async (id) => queueRemove(id, actorOf(ctx)));
