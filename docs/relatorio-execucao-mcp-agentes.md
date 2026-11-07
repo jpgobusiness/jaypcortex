@@ -47,13 +47,14 @@ Local já validado:
 - `npx tsx scripts/smoke-search.ts` — hits nos docs 5 e 6 de funding
 - `npm run build` — limpo
 
-Produção (`https://jaypcortex.vercel.app`, deploy Ready `jaypcortex-9nr4lcwkl`):
+Produção (`https://jaypcortex.vercel.app`, deploy Ready `jaypcortex-qy5ahcif6`, commit `283a3a9`):
 
-- POST `/api/mcp` sem token → 401
-- `initialize` → server `jaypcortex`
-- `list_agents` → `migracao-aws` active, 17 docs, prompt v1
-- `search_knowledge` (“como maximizar funding do MAP”) → Incentivos + playbook Nuage
-- `propose_new_document` + `apply_proposal` → status `applied`, conteúdo TipTap `type: "doc"` (arquivo “MCP smoke produção”, pode apagar)
+- GET `/.well-known/oauth-authorization-server` → `token_endpoint` + `grant_types_supported: client_credentials`
+- POST `/api/mcp` sem token → 401 + `WWW-Authenticate: Bearer`
+- POST `/api/mcp/oauth/token` (form, JSON e Basic) → `{ token_type: Bearer, expires_in: 3600, scope: "read propose write" }`, prefixo `jpc_at_`
+- Com access token: `initialize` → `jaypcortex`; `tools/list` → 23 tools; `list_agents` → `migracao-aws` active (18 docs, prompt v1)
+
+Smoke anterior (Bearer estático `jpc_…`, deploy `jaypcortex-9nr4lcwkl`) continua válido: initialize, search, propose+apply.
 
 ## Log de etapas
 
