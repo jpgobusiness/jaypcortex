@@ -50,8 +50,13 @@ export async function updateSession(request: NextRequest) {
 
   if (isPublic(pathname)) {
     if (user && pathname === "/login") {
+      const next = request.nextUrl.searchParams.get("next") || "";
+      if (next.startsWith("/") && !next.startsWith("//") && !next.includes("://")) {
+        return NextResponse.redirect(new URL(next, request.nextUrl.origin));
+      }
       const url = request.nextUrl.clone();
       url.pathname = "/atividades";
+      url.search = "";
       return NextResponse.redirect(url);
     }
     return response;

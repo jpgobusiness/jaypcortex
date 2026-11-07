@@ -1,67 +1,84 @@
 /**
- * Cria (ou rotaciona o secret) do cliente OAuth amazon-quick.
- * Credenciais em claro só em docs/.mcp-oauth-amazon-quick.local (gitignored).
+ * Cria/rotaciona clientes OAuth amazon-quick (client_credentials) e
+ * amazon-quick-user (authorization_code). Credenciais só em
+ * docs/.mcp-oauth-amazon-quick.local (gitignored).
  */
 import "dotenv/config";
-import { existsSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { prisma } from "../lib/prisma";
-import { hashToken } from "../lib/mcp/tokens";
+import { hashSha256 } from "../lib/mcp/oauth-parse";
 import { generateClientId, generateClientSecret } from "../lib/mcp/oauth";
 
-const NAME = "amazon-quick";
 const FILE = "docs/.mcp-oauth-amazon-quick.local";
 const SCOPES = ["read", "propose", "write"];
 const ORIGIN = (process.env.MCP_PUBLIC_ORIGIN || "https://jaypcortex.vercel.app").replace(/\/$/, "");
 
+async function rotateClient(opts: {
+  name: string;
+  grantTypes: string[];
+  publicClient: boolean;
+}) {
+  const existing = await prisma.mcpOAuthClient.findMany({
+    where: { name: opts.name, revokedAt: null },
+  });
+  for (const row of existing) {
+    await prisma.mcpOAuthAccessToken.deleteMany({ where: { clientId: row.clientId } });
+    await prisma.mcpOAuthClient.update({
+      where: { id: row.id },
+      data: { revokedAt: new Date() },
+    });
+  }
+  const clientId = generateClientId();
+  const clientSecret = generateClientSecret();
+  const row = await prisma.mcpOAuthClient.create({
+    data: {
+      name: opts.name,
+      clientId,
+      clientSecretHash: hashSha256(clientSecret),
+      scopes: SCOPES,
+      publicClient: opts.publicClient,
+      grantTypes: opts.grantTypes,
+      redirectUris: [],
+    },
+  });
+  return { row, clientId, clientSecret };
+}
+
 async function main() {
-  const rotate = process.argv.includes("--rotate");
-  const fileExists = existsSync(FILE);
-  const existing = await prisma.mcpOAuthClient.findFirst({
-    where: { name: NAME, revokedAt: null },
-    orderBy: { createdAt: "desc" },
+  const s2s = await rotateClient({
+    name: "amazon-quick",
+    grantTypes: ["client_credentials"],
+    publicClient: false,
+  });
+  const user = await rotateClient({
+    name: "amazon-quick-user",
+    grantTypes: ["authorization_code", "refresh_token"],
+    publicClient: false,
   });
 
-  if (existing && fileExists && !rotate) {
-    console.log(`Cliente ${NAME} já existe (${existing.clientId}). Credenciais em ${FILE}. Use --rotate para novo secret.`);
-    return;
-  }
-
-  const secret = generateClientSecret();
-  const secretHash = hashToken(secret);
-  let clientId = existing?.clientId ?? generateClientId();
-
-  if (existing) {
-    await prisma.mcpOAuthClient.update({
-      where: { id: existing.id },
-      data: { clientSecretHash: secretHash, scopes: SCOPES },
-    });
-    await prisma.mcpOAuthAccessToken.deleteMany({ where: { clientId: existing.clientId } });
-    clientId = existing.clientId;
-  } else {
-    await prisma.mcpOAuthClient.create({
-      data: {
-        name: NAME,
-        clientId,
-        clientSecretHash: secretHash,
-        scopes: SCOPES,
-      },
-    });
-  }
-
   const body = [
-    `# OAuth MCP amazon-quick — NÃO versionar`,
+    `# OAuth MCP Amazon Quick — NÃO versionar`,
     `criado: ${new Date().toISOString()}`,
-    `name: ${NAME}`,
-    `scopes: ${SCOPES.join(",")}`,
-    `client_id: ${clientId}`,
-    `client_secret: ${secret}`,
-    `token_url: ${ORIGIN}/api/mcp/oauth/token`,
+    `scopes: ${SCOPES.join(" ")}`,
     `mcp_url: ${ORIGIN}/api/mcp`,
+    `token_url: ${ORIGIN}/api/mcp/oauth/token`,
+    `authorization_url: ${ORIGIN}/api/mcp/oauth/authorize`,
     `well_known: ${ORIGIN}/.well-known/oauth-authorization-server`,
-    "",
+    ``,
+    `# Serviço a serviço (client_credentials) — ID/secret só alfanuméricos`,
+    `client_id: ${s2s.clientId}`,
+    `client_secret: ${s2s.clientSecret}`,
+    ``,
+    `# Autenticação do usuário (authorization_code + PKCE S256)`,
+    `user_client_id: ${user.clientId}`,
+    `user_client_secret: ${user.clientSecret}`,
+    `user_public_client: false`,
+    ``,
   ].join("\n");
   writeFileSync(FILE, body, { mode: 0o600 });
-  console.log(`Cliente gravado em ${FILE} (client_id ${clientId})`);
+  console.log(`Clientes gravados em ${FILE}`);
+  console.log(`amazon-quick client_id=${s2s.clientId}`);
+  console.log(`amazon-quick-user client_id=${user.clientId}`);
 }
 
 main()

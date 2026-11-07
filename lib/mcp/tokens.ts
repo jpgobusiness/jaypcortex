@@ -11,7 +11,7 @@ export type McpAuth = {
   name: string;
   scopes: string[];
   profileId: string;
-  kind: "static" | "oauth" | "bootstrap";
+  kind: "static" | "oauth" | "oauth_user" | "bootstrap";
 };
 
 let cachedAdminProfileId: string | null | undefined;
@@ -87,8 +87,8 @@ export async function findValidToken(bearer: string): Promise<McpAuth | null> {
     id: oauth.id,
     name: oauth.client.name,
     scopes: oauth.scopes.length ? oauth.scopes : oauth.client.scopes,
-    profileId: await adminProfileId(),
-    kind: "oauth",
+    profileId: oauth.profileId || (await adminProfileId()),
+    kind: oauth.profileId ? "oauth_user" : "oauth",
   };
 }
 

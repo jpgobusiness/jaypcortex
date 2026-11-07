@@ -601,16 +601,21 @@ model McpToken {
   @@index([profileId])
 }
 
-/// Cliente OAuth 2.0 (client_credentials) para MCP — Amazon Quick e similares.
+/// Cliente OAuth 2.0 (client_credentials e/ou authorization_code) para MCP.
 model McpOAuthClient {
-  id               String                @id @default(cuid())
+  id               String                     @id @default(cuid())
   name             String
-  clientId         String                @unique
+  clientId         String                     @unique
   clientSecretHash String
-  scopes           String[]              @default([])
+  scopes           String[]                   @default([])
+  redirectUris     String[]                   @default([])
+  publicClient     Boolean                    @default(false)
+  grantTypes       String[]                   @default(["client_credentials"])
   revokedAt        DateTime?
-  createdAt        DateTime              @default(now())
+  createdAt        DateTime                   @default(now())
   accessTokens     McpOAuthAccessToken[]
+  authCodes        McpOAuthAuthorizationCode[]
+  refreshTokens    McpOAuthRefreshToken[]
 }
 
 /// Access token OAuth (só o hash no banco). Expira em 3600s.
@@ -620,10 +625,49 @@ model McpOAuthAccessToken {
   clientId  String
   client    McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
   scopes    String[]       @default([])
+  profileId String?        @db.Uuid
+  grantType String         @default("client_credentials")
   expiresAt DateTime
   createdAt DateTime       @default(now())
 
   @@index([clientId])
+  @@index([expiresAt])
+  @@index([profileId])
+}
+
+/// Authorization code (hash, 10 min, uso único) + PKCE S256.
+model McpOAuthAuthorizationCode {
+  id                  String         @id @default(cuid())
+  codeHash            String         @unique
+  clientId            String
+  client              McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  profileId           String         @db.Uuid
+  redirectUri         String
+  scopes              String[]       @default([])
+  codeChallenge       String
+  codeChallengeMethod String         @default("S256")
+  expiresAt           DateTime
+  usedAt              DateTime?
+  createdAt           DateTime       @default(now())
+
+  @@index([clientId])
+  @@index([expiresAt])
+}
+
+/// Refresh token (hash, 30 dias).
+model McpOAuthRefreshToken {
+  id        String         @id @default(cuid())
+  tokenHash String         @unique
+  clientId  String
+  client    McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  profileId String         @db.Uuid
+  scopes    String[]       @default([])
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime       @default(now())
+
+  @@index([clientId])
+  @@index([profileId])
   @@index([expiresAt])
 }
 

@@ -26,7 +26,8 @@ export default function LoginForm() {
         setError(typeof data.error === "string" ? data.error : "Falha no login");
         return;
       }
-      router.replace(next.startsWith("/") ? next : "/atividades");
+      const dest = next.startsWith("/") && !next.startsWith("//") && !next.includes("://") ? next : "/atividades";
+      router.replace(dest);
       router.refresh();
     } catch {
       setError("Falha no login");

@@ -1,96 +1,79 @@
 # Conectar o Amazon Quick (e o Cursor) no MCP da JayP Cortex
 
 URL de produção: **`https://jaypcortex.vercel.app/api/mcp`**  
-Alias (clientes que esperam `/mcp` no fim): `https://jaypcortex.vercel.app/api/mcp/mcp`
+Alias: `https://jaypcortex.vercel.app/api/mcp/mcp`
 
-O MCP aceita **dois** modos de Bearer:
+Credenciais em claro: **`docs/.mcp-oauth-amazon-quick.local`** (gitignored). Não commitar.
 
-1. **OAuth 2.0 client_credentials** (o que o Amazon Quick pede: ID do cliente, segredo, URL do token)
-2. Token estático `jpc_…` (`McpToken`) — Cursor, scripts, fallback
+O MCP aceita Bearer estático `jpc_…`, access token OAuth de **serviço a serviço**, ou access token OAuth de **usuário** (authorization code + PKCE). Sem token: **401** com `WWW-Authenticate`.
 
-Sem token: **401** com `WWW-Authenticate: Bearer`. Sem cookie de login.
+Discovery:
 
-## 1. Amazon Quick (OAuth serviço a serviço)
+- `https://jaypcortex.vercel.app/.well-known/oauth-authorization-server`
+- `https://jaypcortex.vercel.app/.well-known/oauth-protected-resource`
+- `https://jaypcortex.vercel.app/.well-known/openid-configuration` (mesmo metadata; o Quick Java pede este)
 
-Campos do conector MCP no Quick:
+---
 
-| Campo | Valor |
+## Opção A — Autenticação do serviço (OAuth serviço a serviço)
+
+No Quick: **Autenticação do serviço → OAuth de serviço a serviço**.
+
+| Campo no Quick | Valor no arquivo `.local` |
 |---|---|
-| URL MCP | `https://jaypcortex.vercel.app/api/mcp` |
-| ID do cliente | `client_id` em `docs/.mcp-oauth-amazon-quick.local` |
-| Segredo do cliente | `client_secret` no mesmo arquivo |
-| URL do token | `https://jaypcortex.vercel.app/api/mcp/oauth/token` |
+| URL MCP | `mcp_url` → `https://jaypcortex.vercel.app/api/mcp` |
+| ID do cliente | `client_id` (24 chars, só A–Z a–z 0–9) |
+| Segredo do cliente | `client_secret` (40 chars, só A–Z a–z 0–9) |
+| URL do token | `token_url` → `https://jaypcortex.vercel.app/api/mcp/oauth/token` |
 
-Discovery: `https://jaypcortex.vercel.app/.well-known/oauth-authorization-server`  
-(`grant_types_supported`: `client_credentials`; `token_endpoint` aponta para a URL acima.)
+O token endpoint aceita `grant_type=client_credentials` (se omitir, assume este). Credenciais em **HTTP Basic** ou no corpo (form **ou** JSON). Params `resource`, `audience` e outros desconhecidos são ignorados. `scope` é opcional.
 
-O arquivo local (gitignored) é gerado com:
+Resposta: `{ access_token, token_type: "Bearer", expires_in: 3600, scope }`.
+
+---
+
+## Opção B — Autenticação do usuário (OAuth authorization code + PKCE)
+
+No Quick: **Autenticação do usuário**. Use o cliente `amazon-quick-user` (`user_client_id` / `user_client_secret` no `.local`). `public client = false`.
+
+| Campo no Quick | Valor |
+|---|---|
+| URL MCP | `mcp_url` |
+| ID do cliente | `user_client_id` |
+| Segredo do cliente | `user_client_secret` |
+| URL de autorização | `authorization_url` → `https://jaypcortex.vercel.app/api/mcp/oauth/authorize` |
+| URL do token | `token_url` |
+| Escopos | `read propose write` |
+
+Fluxo: Quick abre a URL de autorização → se não estiver logado, `/login?next=…` → tela **Autorizar Amazon Quick a acessar a JayP Cortex** → Autorizar gera `code` (10 min, hash no banco, PKCE S256) → token (access 1 h + refresh 30 dias). Writes MCP usam o **profile do usuário** que autorizou.
+
+Redirect URIs aceitas por padrão: `https://*.quicksight.aws.amazon.com/*` e `https://*.quicksight.aws/*`. Extra via env `MCP_OAUTH_REDIRECT_URIS`. Toda `redirect_uri` recebida vai para o `AuditLog`.
+
+Dynamic Client Registration (RFC 7591): `POST /api/mcp/oauth/register` — só com `redirect_uris` na allowlist QuickSight (ou admin logado / `MCP_OAUTH_REGISTRATION_TOKEN`).
+
+---
+
+## Gerar / rotacionar clientes
 
 ```bash
 npm run mcp:oauth-client
 ```
 
-Rotacionar o secret (invalida access tokens antigos; o `client_id` permanece):
+Isso **revoga** os clientes anteriores e grava ID/secret novos (alfanuméricos) no `.local`.
 
-```bash
-npx tsx scripts/create-mcp-oauth-client.ts --rotate
-```
+---
 
-Não commitar o `.local`. O banco guarda só hash do secret e do access token.
+## Token estático (Cursor / scripts)
 
-O token endpoint aceita `grant_type=client_credentials` com credenciais em **HTTP Basic** ou no corpo (`application/x-www-form-urlencoded` **ou** JSON). Resposta:
-
-```json
-{
-  "access_token": "jpc_at_…",
-  "token_type": "Bearer",
-  "expires_in": 3600,
-  "scope": "read propose write"
-}
-```
-
-O Quick usa esse `access_token` em `Authorization: Bearer` nas chamadas MCP. Expira em 1 hora; o Quick pede outro sozinho.
-
-Fluxo esperado depois de conectar:
-
-1. `list_agents` → achar `migracao-aws`
-2. `search_knowledge` (`query`, `agent=migracao-aws`)
-3. `read_document`
-4. `propose_document_change` (mostra o diff; não grava ainda)
-5. Com confirmação: `apply_proposal`
-6. Se for prompt: `publish_prompt`
-
-## 2. Token estático (Cursor / scripts)
-
-Na UI: **Configurações → Tokens MCP** (só admin). Nome, escopos `read` + `propose` + `write`. O valor em claro aparece **uma vez**.
-
-Pelo script (token `amazon-quick`):
-
-```bash
-npm run mcp:token
-```
-
-O valor fica só em `docs/.mcp-token-amazon-quick.local` (gitignored).
-
-Rotacionar: `npx tsx scripts/create-mcp-token.ts --rotate`
-
-## 3. Cursor / Claude Desktop (stdio)
+Na UI: **Configurações → Tokens MCP**. Ou `npm run mcp:token` → `docs/.mcp-token-amazon-quick.local`.
 
 ```bash
 MCP_URL=https://jaypcortex.vercel.app/api/mcp MCP_TOKEN=jpc_... npx tsx scripts/mcp-stdio.ts
 ```
 
-Ou `npx mcp-remote https://jaypcortex.vercel.app/api/mcp --header "Authorization: Bearer jpc_..."`
+---
 
-Inspector:
-
-```bash
-npx @modelcontextprotocol/inspector
-```
-
-Apontar para a URL de produção (ou `http://localhost:3000/api/mcp` no `next dev`).
-
-## 4. Escopos
+## Escopos
 
 | Escopo | Tools |
 |---|---|
@@ -99,11 +82,11 @@ Apontar para a URL de produção (ou `http://localhost:3000/api/mcp` no `next de
 | `write` | apply/reject, create/update document, publish_prompt, link/unlink, create_agent, reindex |
 | `admin` | todos |
 
-Rate limit: 60 req/min por token (memória do processo Vercel).
+Rate limit: 60 req/min por token.
 
-## 5. O que o MCP **não** faz
+## O que o MCP **não** faz
 
 - Não grava Markdown no banco (converte para TipTap `type: "doc"`).
 - Não abre signup, não apaga `dev.db`, não cria Edge Function.
-- Sem `OPENAI_API_KEY`: busca só FTS (`indexStatus=skipped`).
-- Sem `ask_agent` / chat com LLM no servidor — o Quick veste o agente com `get_agent_prompt` + `search_knowledge`.
+- Sem `OPENAI_API_KEY`: busca só FTS.
+- Sem `ask_agent` / chat com LLM no servidor.

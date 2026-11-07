@@ -4,11 +4,11 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 7 nov 2026 (OAuth client_credentials no MCP)
+Última atualização: 7 nov 2026 (OAuth MCP: client_credentials + authorization_code/PKCE)
 
 ## Últimas mudanças
 
-- 7 nov 2026 — **OAuth 2.0 client_credentials** no MCP para o Amazon Quick: `POST /api/mcp/oauth/token`, discovery `/.well-known/oauth-authorization-server`. O MCP aceita Bearer estático `jpc_…` **ou** access token OAuth (`jpc_at_…`, 1h). Credenciais em `docs/.mcp-oauth-amazon-quick.local` (gitignored). Banco guarda só hash.
+- 7 nov 2026 — OAuth MCP completo para o Quick: **serviço a serviço** (`client_id`/`secret` alfanuméricos; token ignora `resource`/`audience`; grant omitido = `client_credentials`) **e autenticação do usuário** (authorization_code + PKCE S256 + refresh 30d, tela de consentimento). `/.well-known/openid-configuration` (o Java do Quick pedia e tomava 404). Credenciais em `docs/.mcp-oauth-amazon-quick.local`.
 - 7 nov 2026 — **MCP da plataforma (não um MCP por agente)** em `https://jaypcortex.vercel.app/api/mcp`. Quick opera todos os agentes. Sem tool de chat/LLM (`ask_agent` ainda não existe). Ver `docs/mcp-conexao-quick.md`.
 - 7 nov 2026 — Base vetorizada (pgvector + FTS), indexação no save, prompt em camadas, Agente MAP (`migracao-aws`). UI: abas do escritório + Tokens MCP em Configurações.
 - 6 nov 2026 — Prisma na Vercel usa `sslmode=no-verify` (o `sslmode=require` do pooler quebrava TLS).
@@ -31,7 +31,7 @@
 | Hospedagem | **Vercel** em https://jaypcortex.vercel.app. GitHub `jpgobusiness/jaypcortex`. Node 22. |
 | Edge Functions | Zero (MCP e indexação no Next/Vercel) |
 | Storage | Bucket privado `overtime-attachments` vazio. Anexos **novos** vão para o Storage. |
-| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp` (alias `/api/mcp/mcp`). Auth: Bearer estático `McpToken` **ou** OAuth `client_credentials` (`McpOAuthClient` + access token 1h). Escopos `read` / `propose` / `write`. O parâmetro `agent` (slug ou id) escolhe em qual agente operar. |
+| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write`. |
 | Busca | Híbrida RRF (`match_knowledge`): FTS português + pgvector 1536. Sem `OPENAI_API_KEY` → `indexStatus=skipped`, só FTS. |
 | Chat do agente | **Não existe** tool/rota que chame LLM. Quick “veste” o agente com `get_agent_prompt` + `search_knowledge`. Aba Testar só devolve trechos. |
 | Agente MAP | slug `migracao-aws`, 6 camadas de prompt, 12 docs + 5 templates, prompt v1 publicado. |
@@ -161,7 +161,7 @@ Trigger `on auth.users insert` → cria `profiles` (assim o seed do admin não e
 - `AgentPromptLayer` / `AgentPromptVersion`
 - `ChangeProposal` / `FileRevision`
 - `McpToken` / `AuditLog`
-- `McpOAuthClient` / `McpOAuthAccessToken` — OAuth `client_credentials` (hash do secret e do access token; RLS só admin)
+- `McpOAuthClient` / `McpOAuthAccessToken` / `McpOAuthAuthorizationCode` / `McpOAuthRefreshToken` — OAuth (hash; RLS só admin)
 
 **Antes (substituído em 7 nov 2026):** “não existem tags, kind, autor, embeddings”. Passaram a existir na migration `20261107120000_mcp_knowledge`.
 
@@ -169,9 +169,11 @@ Nomes no Postgres são os do Prisma (`"WorkspaceFile"`, `"McpToken"`, …), não
 
 ### Rotas REST novas (UI + serviços; além do MCP)
 
-- `/api/mcp` e `/api/mcp/[transport]` — Streamable HTTP; Bearer estático `jpc_…` **ou** access token OAuth `jpc_at_…`
-- `POST /api/mcp/oauth/token` — OAuth `client_credentials` (Basic ou corpo form/JSON)
-- `GET /.well-known/oauth-authorization-server` e `/.well-known/oauth-protected-resource`
+- `/api/mcp` e `/api/mcp/[transport]` — Streamable HTTP; Bearer estático `jpc_…` **ou** access token OAuth
+- `GET/POST /api/mcp/oauth/authorize` — consentimento (login + PKCE S256)
+- `POST /api/mcp/oauth/token` — `client_credentials`, `authorization_code`, `refresh_token`
+- `POST /api/mcp/oauth/register` — DCR RFC 7591 (allowlist QuickSight)
+- `GET /.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`, `/.well-known/openid-configuration`
 - `/api/mcp-tokens` (GET/POST, admin) e `/api/mcp-tokens/[id]` (DELETE/revogar)
 - `/api/knowledge/search`, `/api/knowledge/reindex`
 - `/api/agents/[id]/prompt` (GET composto, POST publicar), `/prompt/layers`, `/prompt/versions`
@@ -243,7 +245,7 @@ Documentos TipTap **continuam no Postgres** (`content` texto JSON). Não são ar
 
 **Feito.** Tabelas de negócio: `authenticated` + `is_active_user()` (SECURITY DEFINER, para não recursar).  
 `profiles`: o próprio lê a si; admin lê/altera os outros via `is_admin()`.  
-`McpToken`, `AuditLog`, `McpOAuthClient` e `McpOAuthAccessToken`: leitura/escrita só `is_admin()`. MCP autentica o token **no servidor** (Prisma/service role bypassa RLS).  
+`McpToken`, `AuditLog` e tabelas `McpOAuth*`: leitura/escrita só `is_admin()`. MCP autentica o token **no servidor** (Prisma/service role bypassa RLS).  
 `anon` sem grant. Service role (servidor) **bypassa RLS**.
 
 ---
@@ -302,7 +304,7 @@ Arquitetura: **um MCP = o escritório Nuage/JayP Cortex**. Amazon Quick conecta 
 - Prompt em camadas (`kind=prompt` na pasta Prompt) + `AgentPromptVersion` imutável.
 - Propostas: rascunho → aplicar/rejeitar, com diff e `FileRevision`.
 - Agente `migracao-aws` ativo com base MAP.
-- OAuth MCP: **feito** (`client_credentials`, token 1h, discovery RFC 8414). Sem UI de clientes OAuth nesta rodada (script `npm run mcp:oauth-client`).
+- OAuth MCP: **feito** — `client_credentials` (serviço a serviço) e `authorization_code` + PKCE S256 + refresh (autenticação do usuário, tela de consentimento). Discovery RFC 8414 + `openid-configuration`. Clientes no script `npm run mcp:oauth-client`.
 - **Não feito:** `ask_agent` / chat que chama LLM no servidor. Quick usa prompt + busca e responde ele mesmo.
 
 Conexão: `docs/mcp-conexao-quick.md`. Segredo/token em claro nunca no git.
@@ -352,6 +354,8 @@ Variáveis (sem valores aqui):
 | `MCP_ENABLED` | default `true` |
 | `MCP_BOOTSTRAP_TOKEN` | opcional, só se a UI de tokens falhar |
 | `MCP_PUBLIC_ORIGIN` | opcional; issuer OAuth (default `https://jaypcortex.vercel.app`) |
+| `MCP_OAUTH_REDIRECT_URIS` | opcional; padrões extra de redirect (além de `*.quicksight.aws.amazon.com` / `*.quicksight.aws`) |
+| `MCP_OAUTH_REGISTRATION_TOKEN` | opcional; Bearer para DCR fora da allowlist |
 
 Não colocar senha. `DATABASE_URL` na Vercel pode ser a mesma do pooler se o Prisma usar `POSTGRES_POOLER_URL`.
 

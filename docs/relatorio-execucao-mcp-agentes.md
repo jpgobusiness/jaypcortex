@@ -18,8 +18,15 @@ Checklist §14 completo (E0–E12). Build limpo. Token `amazon-quick` gerado (n�
 | Markdown → TipTap no servidor | `@tiptap/html/server` + `happy-dom` | — |
 | Token bootstrap | `MCP_BOOTSTRAP_TOKEN` opcional; comparação por hash | Não definir a env |
 | Escritório cheio no seed | Se `createAgentWithRoom` falhar, cria agente sem mesa | Apagar o agente `migracao-aws` (não apaga o resto do banco) |
-| OAuth no Quick | **Feito depois:** `client_credentials` (não authorization_code). Token 3600s, hash no banco. Basic + form + JSON. | Desligar rotas `/api/mcp/oauth` e `/.well-known`; Bearer estático continua |
-| Actor das writes OAuth | Profile admin (`ADMIN_EMAIL`); `tokenId` vazio (não FK em `McpToken`) | — |
+| OAuth no Quick | `client_credentials` + `authorization_code`/PKCE S256 + refresh. | Desligar rotas `/api/mcp/oauth` |
+| Actor das writes OAuth | client_credentials → admin; authorization_code → **profile do usuário logado** | — |
+| client_id/secret charset | Só alfanumérico (24/40); Quick Java recusava `jpc_cid_` / `_` / `-` | Rotacionar de novo |
+| grant_type omitido | Assume `client_credentials` | — |
+| scope desconhecido | Ignora (não 400). Hipótese do 400 do Quick: `invalid_scope` ou `unsupported_grant_type` | — |
+| `resource` / `audience` | Aceitos e ignorados | — |
+| DCR | Aberto só com redirect na allowlist QuickSight; senão admin/`MCP_OAUTH_REGISTRATION_TOKEN` | Env |
+| Redirect default | `https://*.quicksight.aws.amazon.com/*` e `https://*.quicksight.aws/*`; URI logada no AuditLog | `MCP_OAUTH_REDIRECT_URIS` |
+| `openid-configuration` | Espelho do authorization-server (Quick pedia e tomava 404) | Apagar a rota |
 | Prefixo do access token | `jpc_at_` para distinguir do estático `jpc_` | Trocar gerador |
 | Issuer OAuth | `https://jaypcortex.vercel.app` (`MCP_PUBLIC_ORIGIN` opcional) | Env |
 | RFC 9728 extra | Também publiquei `/.well-known/oauth-protected-resource` (Quick/MCP clients costumam pedir) | Apagar a rota |
@@ -33,7 +40,7 @@ Nenhum bloqueio que tenha impedido o resto. Embeddings semânticos ficam off at�
 ## Pendências do João
 
 - Colar `OPENAI_API_KEY` na Vercel se quiser busca vetorial (sem ela, só FTS).
-- Colar no Amazon Quick (OAuth serviço a serviço) os três campos de `docs/.mcp-oauth-amazon-quick.local`: `client_id`, `client_secret`, `token_url`. URL MCP = `mcp_url`.
+- Recriar o conector MCP no Quick com os valores **novos** de `docs/.mcp-oauth-amazon-quick.local` (ID/secret alfanuméricos). Serviço a serviço = `client_id`/`client_secret`; usuário = `user_client_id`/`user_client_secret` + `authorization_url`.
 - Site URL do Auth: `https://jaypcortex.vercel.app` (já era).
 - Opcional: desligar `disable_signup` no painel Auth (já bloqueado por trigger).
 
@@ -43,7 +50,7 @@ Ver `docs/mcp-conexao-quick.md`.
 
 Local já validado:
 
-- `npm test` — 19 unitários ok (inclui parse OAuth)
+- `npm test` — 23 unitários ok (inclui parse OAuth, PKCE, allowlist)
 - `npx tsx scripts/smoke-search.ts` — hits nos docs 5 e 6 de funding
 - `npm run build` — limpo
 
@@ -72,3 +79,21 @@ Smoke anterior (Bearer estático `jpc_…`, deploy `jaypcortex-9nr4lcwkl`) conti
 - E11 — commits, push `main`, token amazon-quick, teste MCP produção.
 - E12 — `contexto-plataforma.md`, `mcp-conexao-quick.md`, este relatório.
 - OAuth (7 nov 2026, depois do E12) — tabelas `McpOAuthClient`/`McpOAuthAccessToken` (RLS admin), `POST /api/mcp/oauth/token`, `/.well-known/oauth-authorization-server`, MCP aceita `jpc_…` ou `jpc_at_…`, cliente `amazon-quick` em `docs/.mcp-oauth-amazon-quick.local`.
+- OAuth user + diagnóstico Quick (7 nov 2026, ~13:27/13:32 BRT) — ver seção abaixo.
+
+## Diagnóstico Quick “One or more parameters are invalid”
+
+Horários convertidos: 13:27 BRT = 16:27 UTC; 13:32 BRT = 16:32 UTC. Fonte: `vercel logs requests --environment production`.
+
+| UTC | Path | Método | Status | UA |
+|---|---|---|---|---|
+| 16:27:14–16 | `/api/mcp` | POST | **401** | `Java-http-client/25.0.5` |
+| 16:27:17 | `/.well-known/oauth-protected-resource` | GET | 200 | idem |
+| 16:27:18 | `/.well-known/oauth-authorization-server` | GET | 200 | idem |
+| 16:27:18 | `/.well-known/openid-configuration` | GET | **404** | idem |
+| 16:27:18 | `/api/mcp/oauth/token` | POST | **400** | `Google-HTTP-Java-Client/2.1.0 (gzip)` |
+| 16:30:47–16:31:53 | repetiu o mesmo padrão | | 401 / 200 / **404** / **400** | idem |
+
+`McpOAuthAccessToken`: **0 linhas** criadas nessa janela (os 3 tokens existentes são o smoke curl das 16:04 UTC). Runtime logs Vercel: vazios (não havia `console.info` no token route).
+
+Conclusão: o Quick **chegou** na Vercel. Não autenticou o MCP (401 esperado), leu well-known (200), falhou no OIDC discovery (404) e o POST do token voltou 400 (`unsupported_grant_type` ou `invalid_scope` — o único 400 que o endpoint emitia). Corpo do erro não aparece no CDN; daqui pra frente o token route loga grant/keys/UA sem secret.
