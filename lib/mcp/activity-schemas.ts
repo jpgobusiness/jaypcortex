@@ -12,29 +12,25 @@ export const idOrQueryShape = {
   query: z.string().optional(),
 };
 
+/**
+ * Schema enxuto e só string — igual create_agent.
+ * O Action Review do Quick não desenha o botão se houver number/array/~20 campos.
+ * .passthrough() aceita os demais campos em runtime.
+ */
 export const createActivityShape = z.object({
   title: z.string(),
-  type: z.string().optional(),
-  type_id: z.string().optional(),
-  status: z.string().optional(),
   priority: z.string().optional(),
   due: z.string().optional(),
-  due_date: z.string().optional(),
   notes: z.string().optional(),
-  description: z.string().optional(),
-  estimated_minutes: z.number().optional(),
-  importance: z.number().optional(),
-  urgency: z.number().optional(),
-  energy: z.string().optional(),
-  context: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  area: z.string().optional(),
-  waiting_on: z.string().optional(),
-  parent_id: z.string().optional(),
-  recurrence: z.string().optional(),
+  add_to_queue: z.string().optional(),
   client_key: z.string().optional(),
-  add_to_queue: z.number().optional(),
-  source: z.string().optional(),
+}).passthrough();
+
+export const createActivitiesBulkShape = z.object({
+  items: z.preprocess(
+    (value) => (Array.isArray(value) ? JSON.stringify(value) : value),
+    z.string()
+  ),
 });
 
 export function queuePosition(value: unknown): number | boolean | undefined {

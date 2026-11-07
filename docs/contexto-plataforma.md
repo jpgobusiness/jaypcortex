@@ -7,12 +7,12 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 7 nov 2026 (MCP: tools/list Draft 7 para o Quick)
+Última atualização: 7 nov 2026 (MCP: create_activity schema igual create_agent)
 
 ## Últimas mudanças
 
+- 7 nov 2026 — `create_activity` no Quick: schema só strings e poucos campos (`title`, `priority`, `due`, `notes`, `add_to_queue`, `client_key`), no mesmo formato de `create_agent`. Number/array/~20 campos faziam o Action Review não desenhar o botão. Depois do deploy: Sync no conector.
 - 7 nov 2026 — `tools/list` sanitizado para o Amazon Quick (JSON Schema Draft 7, sem `$schema` 2020-12). `busy_blocks` virou string JSON. Leituras declaram `destructiveHint: false`. Sem isso o Action Review travava sem botão até em “lista/exemplos”. Depois do deploy: Sync no conector.
-- 7 nov 2026 — `create_activity.add_to_queue` passou a ser só `number` (posição na fila). Union boolean|number gerava JSON Schema `type: ["boolean","number"]` e o Action Review do Quick travava sem botão.
 - 7 nov 2026 — `list_activities` padrão = pendentes (`status=open`) e devolve `{ activities, total, truncated, counts, note }`. Evita o cliente tratar a página (limit 20) como o universo. `search_activities` e `get_queue` também trazem total.
 - 7 nov 2026 — Tools MCP com `title` PT-BR e annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`). `plan_day` só lê; `apply_day_plan` grava. Após deploy: Customize → Connectors → JayPCortexChat → permissões. Ver `docs/mcp-conexao-quick.md`.
 - 7 nov 2026 — **Cortex Etapa 1:** tool MCP `cortex` (porta de entrada), roteamento determinístico (`lib/cortex`), `Agent.routing` + `CortexRouteLog`, agente Cortex (`slug cortex`, `isOrchestrator`). Sem LLM no servidor. Ver `docs/plano-cortex-orquestrador.md` e `docs/relatorio-execucao-cortex.md`.

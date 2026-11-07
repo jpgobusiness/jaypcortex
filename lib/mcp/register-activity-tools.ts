@@ -34,7 +34,7 @@ import {
 import { getDailyBriefing, getWeeklyReview, planDay } from "@/lib/briefing/briefing";
 import { parseDatePhrase } from "@/lib/activities/dates";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
-import { busyBlocksJson, createActivityShape, idOrQueryShape, queuePosition } from "@/lib/mcp/activity-schemas";
+import { busyBlocksJson, createActivitiesBulkShape, createActivityShape, idOrQueryShape, queuePosition } from "@/lib/mcp/activity-schemas";
 import { parseBusyBlocks } from "@/lib/mcp/quick-compat";
 import { readMeta, writeMeta, type ToolServer } from "@/lib/mcp/annotations";
 
@@ -252,12 +252,17 @@ export function registerActivityTools(
       dueDate: (args.due || args.due_date) ? String(args.due || args.due_date) : undefined,
       notes: args.notes ? String(args.notes) : undefined,
       description: args.description ? String(args.description) : undefined,
-      estimatedMinutes: typeof args.estimated_minutes === "number" ? args.estimated_minutes : undefined,
+      estimatedMinutes: typeof args.estimated_minutes === "number" ? args.estimated_minutes
+        : typeof args.estimated_minutes === "string" && /^\d+$/.test(args.estimated_minutes) ? Number(args.estimated_minutes) : undefined,
       importance: typeof args.importance === "number" ? args.importance : undefined,
       urgency: typeof args.urgency === "number" ? args.urgency : undefined,
       energy: args.energy ? String(args.energy) : undefined,
       context: args.context ? String(args.context) : undefined,
-      tags: Array.isArray(args.tags) ? args.tags.map(String) : undefined,
+      tags: Array.isArray(args.tags)
+        ? args.tags.map(String)
+        : typeof args.tags === "string"
+          ? args.tags.split(/[,;]/).map((part) => part.trim()).filter(Boolean)
+          : undefined,
       area: args.area ? String(args.area) : undefined,
       waitingOn: args.waiting_on ? String(args.waiting_on) : undefined,
       parentId: args.parent_id ? String(args.parent_id) : undefined,
@@ -270,7 +275,7 @@ export function registerActivityTools(
 
   server.registerTool("create_activity", {
     ...writeMeta("Criar tarefa"),
-    description: "Cria uma tarefa. Datas em PT-BR ('hoje','sexta','dia 15'). client_key evita duplicar ditado. add_to_queue = posição na fila (1 = topo). Omitir para não entrar na fila.",
+    description: "Cria uma tarefa. Campos: title (obrigatório), priority, due (PT-BR: hoje/sexta/dia 15), notes, add_to_queue (texto da posição, '1' = topo), client_key.",
     inputSchema: createShape,
   }, async (args) => {
     assertScope(ctx.scopes, "write");
@@ -282,11 +287,21 @@ export function registerActivityTools(
 
   server.registerTool("create_activities_bulk", {
     ...writeMeta("Criar tarefas em lote"),
-    description: "Cria até 30 tarefas de uma vez (despejo por voz). Cada item igual a create_activity.",
-    inputSchema: z.object({ items: z.array(createShape) }),
+    description: "Cria até 30 tarefas. items = JSON array de {title, priority, due, notes, add_to_queue, client_key}.",
+    inputSchema: createActivitiesBulkShape,
   }, async (args) => {
     assertScope(ctx.scopes, "write");
-    const items = Array.isArray(args.items) ? args.items as Record<string, unknown>[] : [];
+    const rawItems = args.items;
+    let items: Record<string, unknown>[] = [];
+    if (Array.isArray(rawItems)) items = rawItems as Record<string, unknown>[];
+    else if (typeof rawItems === "string") {
+      try {
+        const parsed = JSON.parse(rawItems) as unknown;
+        items = Array.isArray(parsed) ? parsed as Record<string, unknown>[] : [];
+      } catch {
+        return wrap(async () => ({ error: "items precisa ser um JSON array" }));
+      }
+    }
     return wrap(async () => {
       const created = await createActivitiesBulk(items.map(fromCreate), actorOf(ctx, args.source));
       return created.map((c) => ({ ...c.presented, idempotent: c.idempotent }));

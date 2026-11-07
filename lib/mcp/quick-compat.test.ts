@@ -17,7 +17,7 @@ test("toDraft7Schema tira $schema, additionalProperties e type union", () => {
     },
   }) as { $schema?: string; additionalProperties?: unknown; properties: { add_to_queue: { type: string } } };
   assert.equal(out.$schema, undefined);
-  assert.equal(out.additionalProperties, undefined);
+  assert.equal("additionalProperties" in out, false);
   assert.equal(out.properties.add_to_queue.type, "boolean");
 });
 

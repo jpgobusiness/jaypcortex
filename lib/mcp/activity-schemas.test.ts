@@ -3,11 +3,21 @@ import { test } from "node:test";
 import { z } from "zod";
 import { busyBlocksJson, createActivityShape, jsonSchemaTypeIssues, queuePosition } from "./activity-schemas";
 
-test("schema de create_activity não usa union de tipos (Quick Action Review)", () => {
-  const schema = z.toJSONSchema(createActivityShape) as { properties?: Record<string, { type?: unknown }> };
+test("schema de create_activity é só string, poucos campos (Quick Action Review)", () => {
+  const schema = z.toJSONSchema(createActivityShape) as {
+    properties?: Record<string, { type?: unknown; items?: unknown }>;
+    required?: string[];
+  };
   const issues = jsonSchemaTypeIssues(schema);
   assert.deepEqual(issues, []);
-  assert.equal(schema.properties?.add_to_queue?.type, "number");
+  const props = schema.properties || {};
+  assert.ok(Object.keys(props).length <= 8);
+  for (const [name, spec] of Object.entries(props)) {
+    assert.equal(spec.type, "string", name);
+    assert.equal(spec.items, undefined, name);
+  }
+  assert.deepEqual(schema.required, ["title"]);
+  assert.equal(createActivityShape.parse({ title: "x", type: "proposta", extra: true }).title, "x");
 });
 
 test("busy_blocks no JSON Schema é string (Quick não renderiza objeto aninhado)", () => {

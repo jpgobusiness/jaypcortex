@@ -22,7 +22,7 @@ export function toDraft7Schema(schema: unknown): unknown {
   if (Array.isArray(schema)) return schema.map(toDraft7Schema);
   const node = { ...(schema as Record<string, unknown>) };
   delete node.$schema;
-  if (node.additionalProperties === false) delete node.additionalProperties;
+  delete node.additionalProperties;
   if (Array.isArray(node.type)) {
     const types = node.type.filter((t) => t !== "null");
     node.type = types[0] ?? "string";
