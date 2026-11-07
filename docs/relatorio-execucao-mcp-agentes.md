@@ -54,12 +54,14 @@ Local já validado:
 - `npx tsx scripts/smoke-search.ts` — hits nos docs 5 e 6 de funding
 - `npm run build` — limpo
 
-Produção (`https://jaypcortex.vercel.app`, deploy Ready `jaypcortex-qy5ahcif6`, commit `283a3a9`):
+Produção (`https://jaypcortex.vercel.app`, deploy Ready `jaypcortex-lixf2x3cw`, commit `234c0c6`):
 
-- GET `/.well-known/oauth-authorization-server` → `token_endpoint` + `grant_types_supported: client_credentials`
+- `/.well-known/openid-configuration` → 200 com `authorization_endpoint`, `token_endpoint`, `code_challenge_methods_supported: S256`
+- GET `/api/mcp/oauth/authorize` sem login → 302 `/login?next=…`
+- Token **sem** `grant_type`, com `resource`/`audience`/`scope=read openid extra` → 200, `scope=read` (extras ignorados)
+- JSON `client_credentials` → 200; `tools/list` 23; `list_agents` → `migracao-aws`
+- Simulação PKCE: code no banco + POST token (Basic) → access + refresh; `list_agents` ok; `refresh_token` → 200 com novo access
 - POST `/api/mcp` sem token → 401 + `WWW-Authenticate: Bearer`
-- POST `/api/mcp/oauth/token` (form, JSON e Basic) → `{ token_type: Bearer, expires_in: 3600, scope: "read propose write" }`, prefixo `jpc_at_`
-- Com access token: `initialize` → `jaypcortex`; `tools/list` → 23 tools; `list_agents` → `migracao-aws` active (18 docs, prompt v1)
 
 Smoke anterior (Bearer estático `jpc_…`, deploy `jaypcortex-9nr4lcwkl`) continua válido: initialize, search, propose+apply.
 
