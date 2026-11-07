@@ -32,10 +32,26 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
 
+# backups locais do sqlite
+/backups/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/app/generated/prisma
+/app/generated/prisma-postgres
+
+# database (sqlite)
+*.db
+*.db-journal
+prisma/*.db
+
+# arquivos locais que não vão para o deploy
+*.mp4
+/Logotipo futurista JayP Cortex.png

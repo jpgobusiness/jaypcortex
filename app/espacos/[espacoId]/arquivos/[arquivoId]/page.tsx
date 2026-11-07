@@ -1,0 +1,358 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import type { JSONContent } from "@tiptap/react";
+import {
+  ChevronRight,
+  CircleAlert,
+  CircleCheck,
+  LoaderCircle,
+  Trash2,
+} from "lucide-react";
+import FileEditor from "@/components/workspaces/FileEditor";
+import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
+import { apiDelete, apiGet, apiPatch } from "@/lib/fetcher";
+import {
+  DEFAULT_FILE_TITLE,
+  fileHref,
+  formatDateTime,
+  workspaceHref,
+} from "@/lib/workspaces";
+import type { WorkspaceFileDetail, WorkspaceFileSummary } from "@/lib/types";
+
+/** Espera depois da última tecla antes de salvar. */
+const SAVE_DELAY_MS = 800;
+
+type Patch = { title?: string; content?: JSONContent };
+type SaveStatus = "saved" | "pending" | "saving" | "error";
+
+function hasChanges(patch: Patch) {
+  return patch.title !== undefined || patch.content !== undefined;
+}
+
+export default function ArquivoPage() {
+  const { espacoId, arquivoId } = useParams<{
+    espacoId: string;
+    arquivoId: string;
+  }>();
+  // A key garante estado novo (e salvamento do anterior) ao trocar de arquivo.
+  return <FilePage key={arquivoId} workspaceId={espacoId} fileId={arquivoId} />;
+}
+
+function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string }) {
+  const router = useRouter();
+  const { workspaces, reload } = useWorkspaces();
+  const [file, setFile] = useState<WorkspaceFileDetail | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [folderId, setFolderId] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
+
+  const handleSaved = useCallback(
+    (saved: WorkspaceFileSummary, patch: Patch) => {
+      setSavedAt(saved.updatedAt);
+      // O título aparece no menu e no dashboard.
+      if (patch.title !== undefined) void reload();
+    },
+    [reload]
+  );
+  const { status, schedule, flush, discard } = useAutosave(fileId, handleSaved);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiGet<WorkspaceFileDetail>(`/api/workspaces/files/${fileId}`).then(
+      (data) => {
+        if (cancelled) return;
+        if (data.workspaceId !== workspaceId) {
+          router.replace(fileHref(data.workspaceId, data.id));
+          return;
+        }
+        setFile(data);
+        setTitle(data.title === DEFAULT_FILE_TITLE ? "" : data.title);
+        setFolderId(data.folderId);
+        setSavedAt(data.updatedAt);
+      },
+      (cause: unknown) => {
+        if (cancelled) return;
+        setLoadError(
+          cause instanceof Error ? cause.message : "Erro ao abrir o arquivo"
+        );
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [fileId, workspaceId, router]);
+
+  const handleTitleChange = useCallback(
+    (value: string) => {
+      setTitle(value);
+      schedule({ title: value });
+    },
+    [schedule]
+  );
+  const handleContentChange = useCallback(
+    (doc: JSONContent) => schedule({ content: doc }),
+    [schedule]
+  );
+
+  const workspace = workspaces.find((item) => item.id === workspaceId) ?? null;
+  const folder = workspace?.folders.find((item) => item.id === folderId) ?? null;
+
+  async function moveTo(nextFolderId: string | null) {
+    setMoving(true);
+    try {
+      await flush();
+      const saved = await apiPatch<WorkspaceFileSummary>(
+        `/api/workspaces/files/${fileId}`,
+        { folderId: nextFolderId }
+      );
+      setFolderId(saved.folderId);
+      setSavedAt(saved.updatedAt);
+      await reload();
+    } catch (cause) {
+      alert(cause instanceof Error ? cause.message : "Erro ao mover o arquivo");
+    } finally {
+      setMoving(false);
+    }
+  }
+
+  async function remove() {
+    const name = title.trim() || DEFAULT_FILE_TITLE;
+    if (!confirm(`Excluir o arquivo "${name}"?`)) return;
+    try {
+      discard();
+      await apiDelete(`/api/workspaces/files/${fileId}`);
+      router.push(workspaceHref(workspaceId));
+      await reload();
+    } catch (cause) {
+      alert(cause instanceof Error ? cause.message : "Erro ao excluir o arquivo");
+    }
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-md px-6 py-16 text-center">
+        <h1 className="text-base font-semibold text-[var(--foreground)]">
+          Não foi possível abrir o arquivo
+        </h1>
+        <p className="mt-1 text-sm text-[var(--muted)]">{loadError}</p>
+        <Link
+          href={workspaceHref(workspaceId)}
+          className="mt-4 inline-flex text-sm font-medium text-[var(--brand-600)] hover:underline"
+        >
+          Voltar para o espaço
+        </Link>
+      </div>
+    );
+  }
+
+  if (!file) {
+    return <p className="py-10 text-center text-[var(--muted)]">Carregando...</p>;
+  }
+
+  return (
+    <div className="flex min-h-full flex-1 flex-col bg-[var(--surface)]">
+      <div className="flex flex-col gap-2 border-b border-[var(--border)] px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <nav
+          aria-label="Caminho do arquivo"
+          className="flex min-w-0 items-center gap-1 text-xs text-[var(--muted)]"
+        >
+          <Link
+            href={workspaceHref(workspaceId)}
+            className="flex min-w-0 shrink items-center gap-1.5 truncate hover:text-[var(--foreground)]"
+          >
+            {workspace && (
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                style={{ backgroundColor: workspace.color }}
+                aria-hidden
+              />
+            )}
+            <span className="truncate">{workspace?.name ?? "Espaço"}</span>
+          </Link>
+          {folder && (
+            <>
+              <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">{folder.name}</span>
+            </>
+          )}
+          <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
+          <span className="truncate text-[var(--foreground)]">
+            {title.trim() || DEFAULT_FILE_TITLE}
+          </span>
+        </nav>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <SaveIndicator status={status} savedAt={savedAt} onRetry={flush} />
+          {workspace && (
+            <select
+              value={folderId ?? ""}
+              onChange={(event) => moveTo(event.target.value || null)}
+              disabled={moving}
+              aria-label="Pasta do arquivo"
+              title="Mover para outra pasta"
+              className="h-9 max-w-44 rounded-lg border border-[var(--border)] bg-white px-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--brand)] md:h-8"
+            >
+              <option value="">Sem pasta</option>
+              {workspace.folders.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={remove}
+            title="Excluir arquivo"
+            aria-label="Excluir arquivo"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-red-50 hover:text-red-600 md:h-8 md:w-8"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Props estáveis: o editor não renderiza de novo a cada tecla do título. */}
+      <FileEditor
+        initialTitle={file.title === DEFAULT_FILE_TITLE ? "" : file.title}
+        initialContent={file.content}
+        autoFocusTitle={file.title === DEFAULT_FILE_TITLE && !file.content}
+        onTitleChange={handleTitleChange}
+        onContentChange={handleContentChange}
+      />
+    </div>
+  );
+}
+
+function SaveIndicator({
+  status,
+  savedAt,
+  onRetry,
+}: {
+  status: SaveStatus;
+  savedAt: string | null;
+  onRetry: () => void;
+}) {
+  if (status === "error") {
+    return (
+      <button
+        type="button"
+        onClick={onRetry}
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 hover:underline"
+      >
+        <CircleAlert className="h-3.5 w-3.5" /> Erro ao salvar. Tentar de novo
+      </button>
+    );
+  }
+  if (status === "saving" || status === "pending") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)]">
+        <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> Salvando...
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)]">
+      <CircleCheck className="h-3.5 w-3.5 text-emerald-600" />
+      {savedAt ? `Salvo ${formatDateTime(savedAt)}` : "Salvo"}
+    </span>
+  );
+}
+
+/**
+ * Salva título e conteúdo sozinho, um pouco depois da última alteração.
+ * As gravações vão em fila, e o que faltar é salvo ao sair da página.
+ */
+function useAutosave(
+  fileId: string,
+  onSaved: (saved: WorkspaceFileSummary, patch: Patch) => void
+) {
+  const [status, setStatus] = useState<SaveStatus>("saved");
+  const pending = useRef<Patch>({});
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const inFlight = useRef(0);
+  const onSavedRef = useRef(onSaved);
+
+  useEffect(() => {
+    onSavedRef.current = onSaved;
+  }, [onSaved]);
+
+  const flush = useCallback(() => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    if (!hasChanges(pending.current)) return queue.current;
+
+    const patch = pending.current;
+    pending.current = {};
+    inFlight.current += 1;
+    queue.current = queue.current.then(async () => {
+      setStatus("saving");
+      try {
+        const saved = await apiPatch<WorkspaceFileSummary>(
+          `/api/workspaces/files/${fileId}`,
+          patch
+        );
+        onSavedRef.current(saved, patch);
+        setStatus(hasChanges(pending.current) ? "pending" : "saved");
+      } catch {
+        // Devolve o que não salvou; alterações mais novas têm prioridade.
+        pending.current = { ...patch, ...pending.current };
+        setStatus("error");
+      } finally {
+        inFlight.current -= 1;
+      }
+    });
+    return queue.current;
+  }, [fileId]);
+
+  const schedule = useCallback(
+    (patch: Patch) => {
+      pending.current = { ...pending.current, ...patch };
+      setStatus("pending");
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => void flush(), SAVE_DELAY_MS);
+    },
+    [flush]
+  );
+
+  /** Descarta o que estava pendente (ex.: o arquivo vai ser excluído). */
+  const discard = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+    pending.current = {};
+  }, []);
+
+  // Salva o que faltar ao sair da página.
+  useEffect(() => () => void flush(), [flush]);
+
+  // Ctrl/Cmd+S salva na hora; fechar a aba com algo pendente pede confirmação.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void flush();
+      }
+    }
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      if (!hasChanges(pending.current) && inFlight.current === 0) return;
+      void flush();
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [flush]);
+
+  return { status, schedule, flush, discard };
+}

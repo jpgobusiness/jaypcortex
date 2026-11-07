@@ -1,0 +1,30 @@
+---
+description: Após cada melhoria, atualizar a documentação canônica da plataforma — mesmo sem o usuário pedir.
+alwaysApply: true
+---
+
+# Documentação viva
+
+Arquivo-base (fonte da verdade): `docs/contexto-plataforma.md`
+
+Plano de discussão Auth/Supabase/Edge: `docs/contexto-plataforma-supabase.md` (se divergir, vale o arquivo-base).
+
+## Quando atualizar
+
+No **mesmo turno** em que o trabalho de produto termina — melhoria, correção, módulo, schema, auth, rota, menu, storage, MCP, edge — atualizar o markdown **sem o usuário pedir**.
+
+Não atualizar só por: pergunta, typo, lint, comentário, ou mudança exclusiva em `.cursor/` / docs.
+
+## O que atualizar em `docs/contexto-plataforma.md`
+
+1. Data em **Última atualização**
+2. Um bullet em **Últimas mudanças** (manter no máximo 5)
+3. Tabela **Estado atual** se o fato mudou (ex.: SQLite → Supabase)
+4. Módulos, tabelas, rotas, auth, storage, edge, MCP, se a mudança tocou nisso
+5. Se um item do plano foi feito: mover de “proposta” para “hoje”; não deixar o plano como se ainda fosse futuro
+
+Não copiar diff de código. Só o fato novo em 1–4 linhas.
+
+## Encerramento
+
+Não declarar a tarefa completa se o código mudou e o arquivo-base ficou desatualizado.

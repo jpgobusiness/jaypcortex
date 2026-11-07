@@ -1,0 +1,460 @@
+// Schema da plataforma de gestão de oportunidades e metas (Nuage Controle)
+// Tudo dinâmico: estágios, tipos de atividade e metas ficam no banco, nada hardcoded.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+/// Estágios do funil (pipeline). Configuráveis pelo usuário.
+model Stage {
+  id            String        @id @default(cuid())
+  name          String
+  order         Int           @default(0)
+  color         String        @default("#6366f1")
+  probability   Int           @default(0) // probabilidade padrão de fechamento (%)
+  isWon         Boolean       @default(false) // conta como receita realizada (ganho)
+  isLost        Boolean       @default(false) // negócio perdido
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  opportunities Opportunity[]
+
+  @@index([order])
+}
+
+/// Oportunidade (negócio) que avança pelo pipeline.
+model Opportunity {
+  id            String     @id @default(cuid())
+  name          String
+  client        String? // empresa / cliente
+  contact       String? // nome do contato
+  email         String?
+  phone         String?
+  value         Float      @default(0) // valor do negócio (R$)
+  probability   Int? // override da probabilidade do estágio (%)
+  stageId       String
+  stage         Stage      @relation(fields: [stageId], references: [id])
+  commercialId  String? // comercial responsável pela oportunidade
+  commercial    Commercial? @relation(fields: [commercialId], references: [id])
+  quarter       String? // Q1, Q2, Q3, Q4
+  year          Int?
+  expectedClose DateTime? // data prevista de fechamento
+  closedAt      DateTime? // data real de fechamento
+  owner         String? // responsável
+  source        String? // origem do lead
+  description   String?
+
+  // Campos comerciais
+  monthlyValue   Float   @default(0) // valor mensal (recorrência)
+  setupValue     Float   @default(0) // valor de setup (pontual)
+  contractMonths Int? // tempo do contrato (em meses)
+  product        String? // produto
+  subOffer       String? // suboferta
+  recurrenceType String? // RECORRENTE | SETUP | PONTUAL
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  activities Activity[]
+
+  @@index([stageId])
+  @@index([commercialId])
+  @@index([quarter, year])
+}
+
+/// Comercial (vendedor) que está tocando a oportunidade. Configurável.
+model Commercial {
+  id            String        @id @default(cuid())
+  name          String
+  color         String        @default("#6366f1")
+  active        Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  opportunities Opportunity[]
+}
+
+/// Status de atividade configurável (renomear, criar, excluir).
+/// A chave (key) é o valor estável referenciado por Activity.status.
+model ActivityStatus {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  name      String
+  color     String   @default("#6366f1")
+  order     Int      @default(0)
+  isDone    Boolean  @default(false) // marca conclusão (para completedAt, dashboard, checkbox)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([order])
+}
+
+/// Tipos de atividade configuráveis (ex.: Criar Doc, Criar Proposta, Criar Calculadora).
+model ActivityType {
+  id         String     @id @default(cuid())
+  name       String
+  color      String     @default("#6366f1")
+  createdAt  DateTime   @default(now())
+  activities Activity[]
+}
+
+/// Atividade/tarefa, opcionalmente vinculada a uma oportunidade.
+model Activity {
+  id            String        @id @default(cuid())
+  title         String
+  typeId        String?
+  type          ActivityType? @relation(fields: [typeId], references: [id])
+  opportunityId String?
+  opportunity   Opportunity?  @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  status        String        @default("pending") // pending | in_progress | done
+  priority      String        @default("normal") // low | normal | high | urgent
+  dueDate       DateTime?
+  notes         String?
+  completedAt   DateTime?
+  queueOrder    Int? // posição na fila de prioridades (null = fora da fila)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  mapNodes      ActivityMapNode[]
+
+  @@index([opportunityId])
+  @@index([status])
+  @@index([queueOrder])
+}
+
+/// Contato disponível para fluxos de automação, como envio de mensagens pelo WhatsApp.
+model AutomationContact {
+  id            String   @id @default(cuid())
+  automationKey String   @default("whatsapp_message")
+  name          String
+  phone         String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([automationKey, phone])
+  @@index([automationKey, name])
+}
+
+/// Pasta de mapas mentais.
+model MindMapGroup {
+  id        String    @id @default(cuid())
+  name      String
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  maps      MindMap[]
+
+  @@index([order])
+}
+
+/// Um quadro de mapa mental. Vários mapas, cada um com seus cartões e setas.
+model MindMap {
+  id        String            @id @default(cuid())
+  name      String
+  groupId   String?
+  group     MindMapGroup?     @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  order     Int               @default(0)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  nodes     ActivityMapNode[]
+  shapes    MindMapShape[]
+  connections MindMapConnection[]
+
+  @@index([groupId, order])
+}
+
+/// Posição de uma atividade em um mapa mental.
+model ActivityMapNode {
+  id         String   @id @default(cuid())
+  mapId      String
+  map        MindMap  @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  x          Float    @default(0)
+  y          Float    @default(0)
+  color      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([mapId, activityId])
+  @@index([mapId])
+}
+
+/// Forma livre posicionada dentro de um mapa mental.
+model MindMapShape {
+  id        String   @id @default(cuid())
+  mapId     String
+  map       MindMap  @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  kind      String   @default("rectangle")
+  label     String?
+  iconName  String?
+  x         Float    @default(0)
+  y         Float    @default(0)
+  width     Float    @default(160)
+  height    Float    @default(90)
+  color     String   @default("#dbeafe")
+  zIndex    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([mapId])
+}
+
+/// Ligação genérica entre atividades e/ou formas do mesmo mapa.
+model MindMapConnection {
+  id        String   @id @default(cuid())
+  mapId     String
+  map       MindMap  @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  fromType  String
+  fromId    String
+  fromSide  String   @default("right")
+  toType    String
+  toId      String
+  toSide    String   @default("left")
+  createdAt DateTime @default(now())
+
+  @@unique([mapId, fromType, fromId, toType, toId])
+  @@index([mapId])
+  @@index([fromType, fromId])
+  @@index([toType, toId])
+}
+
+/// Item configurável do desafio (ex.: Água, Chá, Treino, Cerveja...).
+model ChallengeItem {
+  id        String   @id @default(cuid())
+  name      String // nome exibido ("Água 3L", "Treino", etc.)
+  icon      String   @default("circle") // nome do ícone Lucide
+  order     Int      @default(0) // ordem na tabela
+  active    Boolean  @default(true) // se false, não conta na pontuação
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  checks    ChallengeDayCheck[]
+
+  @@index([order])
+}
+
+/// Desafio mensal (hábitos do dia). Um registro por dia civil dentro do mês.
+model ChallengeDay {
+  id            String   @id @default(cuid())
+  monthKey      String // "YYYY-MM"
+  day           Int // 1–28/29/30/31 conforme o mês
+  date          DateTime // meia-noite UTC do dia
+  water         Boolean  @default(false) // Água 3L-4L
+  tea           Boolean  @default(false) // Chá de Cavalinha 1L
+  breakfast     Boolean  @default(false) // Café da Manhã
+  lunch         Boolean  @default(false) // Almoço
+  snack         Boolean  @default(false) // Lanche
+  dinner        Boolean  @default(false) // Jantar
+  drankBeer     Boolean  @default(false) // legado: true = bebeu
+  beerAbstained Boolean  @default(false) // marcou que não bebeu
+  beerCans      Int      @default(0) // legado (não usado na UI)
+  workoutStatus String   @default("not_done") // done | rest | not_done | double
+  workoutType   String? // treino_a | treino_b | treino_c | treino_d | corrida | descanso
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  checks        ChallengeDayCheck[]
+
+  @@unique([monthKey, day])
+  @@index([monthKey])
+}
+
+/// Check de um item em um dia específico (pivot ChallengeDay ↔ ChallengeItem).
+model ChallengeDayCheck {
+  id        String        @id @default(cuid())
+  dayId     String
+  day       ChallengeDay  @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      ChallengeItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  checked   Boolean       @default(true)
+  createdAt DateTime      @default(now())
+
+  @@unique([dayId, itemId])
+  @@index([dayId])
+  @@index([itemId])
+}
+
+/// Configuração do desafio por mês (meta de nota, etc.).
+model ChallengeMonth {
+  id        String   @id @default(cuid())
+  monthKey  String   @unique // "YYYY-MM"
+  goalScore Float    @default(70) // meta de nota do mês (%)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Mês de controle de horas extras. Valor-hora e meta configuráveis por mês.
+model OvertimeMonth {
+  id         String          @id @default(cuid())
+  monthKey   String          @unique // formato "YYYY-MM"
+  hourlyRate Float           @default(0) // valor da hora extra (R$)
+  goalHours  Float           @default(0) // meta de horas do mês
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  entries    OvertimeEntry[]
+}
+
+/// Registro de hora extra dentro de um mês.
+model OvertimeEntry {
+  id               String               @id @default(cuid())
+  monthId          String
+  month            OvertimeMonth        @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  date             DateTime
+  hours            Float                @default(0)
+  description      String?
+  clickupRequested Boolean              @default(false) // validado e solicitado no ClickUp
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  attachments      OvertimeAttachment[]
+
+  @@index([monthId])
+}
+
+/// Arquivo/imagem anexado a um registro de hora extra (guardado no banco).
+model OvertimeAttachment {
+  id        String        @id @default(cuid())
+  entryId   String
+  entry     OvertimeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime      @default(now())
+
+  @@index([entryId])
+}
+
+/// Meta por quarter. A meta acumulada é calculada somando os quarters anteriores.
+model QuarterGoal {
+  id        String   @id @default(cuid())
+  year      Int
+  quarter   String // Q1, Q2, Q3, Q4
+  target    Float // meta do quarter (não acumulada)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, quarter])
+}
+
+/// Hábito recorrente do Controle Diário (dinâmico — o usuário pode criar/editar/excluir).
+model DailyHabit {
+  id        String            @id @default(cuid())
+  name      String
+  order     Int               @default(0)
+  active    Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  checks    DailyHabitCheck[]
+
+  @@index([order])
+  @@index([active])
+}
+
+/// Dia do Controle Diário (um por data civil).
+model DailyDay {
+  id        String            @id @default(cuid())
+  date      DateTime          @unique // meia-noite UTC do dia (YYYY-MM-DD)
+  day       Int // 1–31
+  monthKey  String // "YYYY-MM"
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  checks    DailyHabitCheck[]
+
+  @@index([monthKey])
+}
+
+/// Checkbox de um hábito em um dia específico.
+model DailyHabitCheck {
+  id      String     @id @default(cuid())
+  dayId   String
+  day     DailyDay   @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  habitId String
+  habit   DailyHabit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  done    Boolean    @default(false)
+
+  @@unique([dayId, habitId])
+  @@index([habitId])
+}
+
+/// Espaço de trabalho. Aparece no menu e agrupa pastas e arquivos.
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  description String?
+  color       String            @default("#7b68ee")
+  order       Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  folders     WorkspaceFolder[]
+  files       WorkspaceFile[]
+  agent       Agent? // preenchido quando o espaço é a sala de um agente
+
+  @@index([order])
+}
+
+/// Pasta de um espaço, para separar arquivos.
+model WorkspaceFolder {
+  id          String          @id @default(cuid())
+  workspaceId String
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  order       Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  files       WorkspaceFile[]
+
+  @@index([workspaceId, order])
+}
+
+/// Arquivo (página de conteúdo) de um espaço, solto ou dentro de uma pasta.
+model WorkspaceFile {
+  id          String           @id @default(cuid())
+  workspaceId String
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folderId    String?
+  folder      WorkspaceFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  title       String           @default("Sem título")
+  content     String           @default("") // documento do editor em JSON (TipTap)
+  excerpt     String           @default("") // início do texto, para prévias no dashboard
+  order       Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  knowledge   AgentKnowledge[] // agentes que usam este arquivo como base
+
+  @@index([workspaceId, folderId, order])
+  @@index([folderId])
+}
+
+/// Agente de IA do escritório. Um deles é o orquestrador (o "cérebro").
+model Agent {
+  id             String           @id @default(cuid())
+  name           String
+  role           String           @default("") // cargo exibido no escritório
+  description    String           @default("") // o que faz; o orquestrador usa para escolher quem chamar
+  instructions   String           @default("") // instruções fixas (prompt de sistema)
+  isOrchestrator Boolean          @default(false)
+  deskIndex      Int?             @unique // mesa no escritório (o orquestrador fica na sala de vidro)
+  skinTone       String           @default("#c68a62")
+  hairStyle      String           @default("short")
+  hairColor      String           @default("#2a1b14")
+  shirtColor     String           @default("#4f46e5")
+  accessory      String           @default("none") // none | headphones | glasses
+  workspaceId    String?          @unique // sala do agente (um espaço de trabalho)
+  workspace      Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  knowledge      AgentKnowledge[]
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+/// Documento anexado à base de conhecimento de um agente.
+model AgentKnowledge {
+  id        String        @id @default(cuid())
+  agentId   String
+  agent     Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  fileId    String
+  file      WorkspaceFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  createdAt DateTime      @default(now())
+
+  @@unique([agentId, fileId])
+  @@index([fileId])
+}
