@@ -99,7 +99,7 @@ export function registerActivityTools(
   };
 
   server.registerTool("list_activities", {
-    description: "Lista tarefas. Filtros: status (key|open|done|all), priority, due (overdue|today|tomorrow|this_week|next_7d|no_date), type, tags, area, q, in_queue, include_deleted, sort (score|due|created|queue)",
+    description: "Dados vivos de tarefas (seção Atividades). Lista tarefas. Filtros: status (key|open|done|all), priority, due (overdue|today|tomorrow|this_week|next_7d|no_date), type, tags, area, q, in_queue, include_deleted, sort (score|due|created|queue). Não use search_knowledge para isso.",
     inputSchema: z.object({
       status: z.string().optional(),
       priority: z.string().optional(),
@@ -131,7 +131,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("get_activity", {
-    description: "Detalhe da tarefa (id ou query), subtarefas, histórico, sessões e lembretes",
+    description: "Dados vivos de tarefas (seção Atividades). Detalhe da tarefa (id ou query), subtarefas, histórico, sessões e lembretes.",
     inputSchema: z.object(idOrQuery),
   }, async (args) => {
     assertScope(ctx.scopes, "read");
@@ -139,7 +139,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("search_activities", {
-    description: "Busca textual por título/descrição/notas (ex.: 'proposta Vero')",
+    description: "Dados vivos de tarefas (seção Atividades). Busca textual por título/descrição/notas (ex.: 'proposta Vero'). Não use search_knowledge para achar tarefa.",
     inputSchema: z.object({ q: z.string(), limit: z.number().optional() }),
   }, async (args) => {
     assertScope(ctx.scopes, "read");
@@ -147,7 +147,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("get_queue", {
-    description: "Fila de execução em ordem",
+    description: "Dados vivos de tarefas (seção Atividades). Fila de execução em ordem.",
     inputSchema: z.object({}),
   }, async () => {
     assertScope(ctx.scopes, "read");
@@ -171,7 +171,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("get_daily_briefing", {
-    description: "Cérebro do dia: top 3, atrasadas, vencendo, lembretes, carga vs agenda (busy_blocks) e alertas. Score determinístico.",
+    description: "Dados vivos de tarefas (seção Atividades). Cérebro do dia: top 3, atrasadas, vencendo, lembretes, carga vs agenda (busy_blocks) e alertas. Score determinístico.",
     inputSchema: z.object({
       date: z.string().optional(),
       busy_blocks: z.array(z.object({ start: z.string(), end: z.string(), title: z.string().optional() })).optional(),
@@ -184,7 +184,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("get_weekly_review", {
-    description: "Revisão da semana: criadas, concluídas, atrasadas, tempo por área, paradas",
+    description: "Dados vivos de tarefas (seção Atividades). Revisão da semana: criadas, concluídas, atrasadas, tempo por área, paradas.",
     inputSchema: z.object({ week_start: z.string().optional() }),
   }, async (args) => {
     assertScope(ctx.scopes, "read");

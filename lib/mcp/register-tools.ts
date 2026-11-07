@@ -11,6 +11,7 @@ import { applyProposal, createProposal, rejectProposal } from "@/lib/proposals/s
 import { writeAudit } from "@/lib/mcp/audit";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
 import { registerActivityTools } from "@/lib/mcp/register-activity-tools";
+import { registerCortexTools } from "@/lib/mcp/register-cortex-tools";
 import { parseEditorDocument } from "@/lib/workspaces";
 
 type ToolServer = {
@@ -18,6 +19,11 @@ type ToolServer = {
     name: string,
     config: { title?: string; description: string; inputSchema: unknown },
     handler: (args: Record<string, unknown>) => Promise<{ content: { type: "text"; text: string }[] }>
+  ) => void;
+  registerPrompt?: (
+    name: string,
+    config: { title?: string; description: string; argsSchema?: unknown },
+    handler: (args: Record<string, unknown>) => Promise<{ messages: unknown[] }>
   ) => void;
 };
 
@@ -29,12 +35,34 @@ function assertScope(scopes: string[], needed: McpScope | McpScope[]) {
   if (!hasScope(scopes, needed)) throw new Error("Token sem permissão para esta tool");
 }
 
+function wrap(
+  handler: (args: Record<string, unknown>) => Promise<{ content: { type: "text"; text: string }[] }>
+) {
+  return async (args: Record<string, unknown>) => {
+    try {
+      return await handler(args);
+    } catch (err) {
+      console.error("mcp tool failed", err);
+      return text({ error: err instanceof Error ? err.message : "Erro interno" });
+    }
+  };
+}
+
+function jsonSafe(value: unknown) {
+  return JSON.parse(JSON.stringify(value, (_key, v) => {
+    if (typeof v === "bigint") return Number(v);
+    if (v instanceof Date) return v.toISOString();
+    return v;
+  }));
+}
+
 export function registerMcpTools(
   server: ToolServer,
   ctx: { tokenId: string; profileId: string; scopes: string[] }
 ) {
   const actor = { createdBy: ctx.profileId || null, source: "mcp" as const };
   registerActivityTools(server, ctx);
+  registerCortexTools(server, ctx);
 
   server.registerTool("list_agents", {
     description: "Lista agentes com slug, papel, status, versão do prompt e nº de docs",
@@ -53,12 +81,12 @@ export function registerMcpTools(
   });
 
   server.registerTool("get_agent", {
-    description: "Config completa do agente, camadas do prompt e catálogo da base",
+    description: "Configuração do agente. Não executa nada; para agir use cortex + tools sugeridas.",
     inputSchema: z.object({ agent: z.string() }),
-  }, async ({ agent }) => {
+  }, wrap(async ({ agent }) => {
     assertScope(ctx.scopes, "read");
     const id = await resolveAgentId(String(agent));
-    if (!id) throw new Error("Agente não encontrado");
+    if (!id) return text({ error: "Agente não encontrado" });
     const row = await prisma.agent.findUnique({
       where: { id },
       include: {
@@ -66,23 +94,45 @@ export function registerMcpTools(
         knowledge: { include: { file: { select: { id: true, title: true, kind: true, tags: true, indexStatus: true } } } },
       },
     });
-    return text(row);
-  });
+    if (!row) return text({ error: "Agente não encontrado" });
+    return text(jsonSafe({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      role: row.role,
+      description: row.description,
+      status: row.status,
+      model: row.model,
+      temperature: row.temperature,
+      isOrchestrator: row.isOrchestrator,
+      capabilities: row.capabilities,
+      retrievalConfig: row.retrievalConfig,
+      routing: row.routing,
+      activePromptVersionId: row.activePromptVersionId,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      promptLayers: row.promptLayers,
+      knowledge: row.knowledge,
+    }));
+  }));
 
   server.registerTool("get_agent_prompt", {
-    description: "Prompt composto ativo e rascunho atual das camadas",
+    description: "Prompt composto ativo e rascunho atual das camadas. Não executa o agente; para agir use cortex.",
     inputSchema: z.object({ agent: z.string() }),
-  }, async ({ agent }) => {
+  }, wrap(async ({ agent }) => {
     assertScope(ctx.scopes, "read");
     const id = await resolveAgentId(String(agent));
-    if (!id) throw new Error("Agente não encontrado");
+    if (!id) return text({ error: "Agente não encontrado" });
     const draft = await composeAgentPrompt(id);
     const row = await prisma.agent.findUnique({ where: { id }, select: { activePromptVersionId: true } });
     const published = row?.activePromptVersionId
-      ? await prisma.agentPromptVersion.findUnique({ where: { id: row.activePromptVersionId } })
+      ? await prisma.agentPromptVersion.findUnique({
+          where: { id: row.activePromptVersionId },
+          select: { id: true, version: true, composedPrompt: true, note: true, createdAt: true, layersSnapshot: true },
+        })
       : null;
-    return text({ draft, published });
-  });
+    return text(jsonSafe({ draft, published }));
+  }));
 
   server.registerTool("list_workspaces", {
     description: "Lista espaços de trabalho",
@@ -97,7 +147,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("list_documents", {
-    description: "Lista documentos com filtros de espaço, pasta, agente, kind, tags e texto",
+    description: "Lista documentos da base de conhecimento. Só documentos — não contém tarefas. Para tarefas use list_activities ou cortex.",
     inputSchema: z.object({
       workspaceId: z.string().optional(),
       folderId: z.string().optional(),
@@ -105,9 +155,13 @@ export function registerMcpTools(
       kind: z.string().optional(),
       q: z.string().optional(),
     }),
-  }, async (args) => {
+  }, wrap(async (args) => {
     assertScope(ctx.scopes, "read");
-    const agentId = args.agent ? await resolveAgentId(String(args.agent)) : null;
+    let agentId: string | null = null;
+    if (args.agent) {
+      agentId = await resolveAgentId(String(args.agent));
+      if (!agentId) return text({ error: "Agente não encontrado" });
+    }
     const files = await prisma.workspaceFile.findMany({
       where: {
         ...(args.workspaceId ? { workspaceId: String(args.workspaceId) } : {}),
@@ -123,38 +177,52 @@ export function registerMcpTools(
       take: 100,
       orderBy: { updatedAt: "desc" },
     });
-    return text(files);
-  });
+    return text(jsonSafe(files));
+  }));
 
   server.registerTool("read_document", {
-    description: "Lê um documento (markdown de leitura, hash, kind, tags)",
+    description: "Lê um documento da base de conhecimento. Só documentos — não contém tarefas. Para tarefas use list_activities ou cortex.",
     inputSchema: z.object({ file_id: z.string() }),
-  }, async ({ file_id }) => {
+  }, wrap(async ({ file_id }) => {
     assertScope(ctx.scopes, "read");
     const file = await prisma.workspaceFile.findUnique({ where: { id: String(file_id) } });
-    if (!file) throw new Error("Arquivo não encontrado");
-    return text({
+    if (!file) return text({ error: "Arquivo não encontrado" });
+    let markdown = "";
+    try {
+      markdown = tiptapToMarkdown(parseEditorDocument(file.content));
+    } catch (err) {
+      console.error("read_document markdown", file.id, err);
+      markdown = "";
+    }
+    const MAX = 80_000;
+    const truncated = markdown.length > MAX;
+    return text(jsonSafe({
       id: file.id,
       title: file.title,
       kind: file.kind,
       tags: file.tags,
       hash: file.contentHash,
       updatedAt: file.updatedAt,
-      markdown: tiptapToMarkdown(parseEditorDocument(file.content)),
-    });
-  });
+      markdown: truncated ? markdown.slice(0, MAX) + "\n\n…[truncado]" : markdown,
+      truncated,
+    }));
+  }));
 
   server.registerTool("search_knowledge", {
-    description: "Busca híbrida na base (semântica + FTS). Informe agent (slug) para filtrar.",
+    description: "Busca híbrida na base de conhecimento (semântica + FTS). Só documentos — não contém tarefas. Para tarefas use list_activities ou cortex.",
     inputSchema: z.object({
       query: z.string(),
       agent: z.string().optional(),
       kinds: z.array(z.string()).optional(),
       top_k: z.number().optional(),
     }),
-  }, async (args) => {
+  }, wrap(async (args) => {
     assertScope(ctx.scopes, "read");
-    const agentId = args.agent ? await resolveAgentId(String(args.agent)) : null;
+    let agentId: string | null = null;
+    if (args.agent) {
+      agentId = await resolveAgentId(String(args.agent));
+      if (!agentId) return text({ error: "Agente não encontrado" });
+    }
     const hits = await searchKnowledge({
       query: String(args.query),
       agentId,
@@ -162,7 +230,7 @@ export function registerMcpTools(
       topK: typeof args.top_k === "number" ? args.top_k : 8,
     });
     return text(hits);
-  });
+  }));
 
   server.registerTool("list_proposals", {
     description: "Lista propostas de mudança",
