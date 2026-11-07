@@ -47,9 +47,11 @@ No Quick: **Autenticação do usuário**. Use o cliente `amazon-quick-user` (`us
 
 Fluxo: Quick abre a URL de autorização → se não estiver logado, `/login?next=…` → tela **Autorizar Amazon Quick a acessar a JayP Cortex** → Autorizar gera `code` (10 min, hash no banco, PKCE S256) → token (access 1 h + refresh 30 dias). Writes MCP usam o **profile do usuário** que autorizou.
 
-Redirect URIs aceitas por padrão: `https://*.quicksight.aws.amazon.com/*` e `https://*.quicksight.aws/*`. Extra via env `MCP_OAUTH_REDIRECT_URIS`. Toda `redirect_uri` recebida vai para o `AuditLog`.
+Redirect URIs aceitas por padrão: `https://*.quicksight.aws.amazon.com/*`, `https://*.quicksight.aws/*`, `https://chatgpt.com/connector_platform_oauth_redirect`, `https://chat.openai.com/connector_platform_oauth_redirect`. Extra via env `MCP_OAUTH_REDIRECT_URIS`. Toda `redirect_uri` recebida vai para o `AuditLog`.
 
-Dynamic Client Registration (RFC 7591): `POST /api/mcp/oauth/register` — só com `redirect_uris` na allowlist QuickSight (ou admin logado / `MCP_OAUTH_REGISTRATION_TOKEN`).
+Dynamic Client Registration (RFC 7591): `POST /api/mcp/oauth/register` — só com `redirect_uris` na allowlist (QuickSight/ChatGPT) ou admin logado / `MCP_OAUTH_REGISTRATION_TOKEN`.
+
+ChatGPT (voz) → MCP direto: `docs/mcp-conexao-chatgpt.md`.
 
 ---
 
@@ -77,10 +79,10 @@ MCP_URL=https://jaypcortex.vercel.app/api/mcp MCP_TOKEN=jpc_... npx tsx scripts/
 
 | Escopo | Tools |
 |---|---|
-| `read` | list/get agents, documents, search, proposals, history |
+| `read` | list/get agents, documents, search, proposals, history; **atividades** (list/get/search/queue/statuses/types); `get_daily_briefing`, `get_weekly_review`, `plan_day` (sem apply), `get_activity_history` |
 | `propose` | propose_* |
-| `write` | apply/reject, create/update document, publish_prompt, link/unlink, create_agent, reindex |
-| `admin` | todos |
+| `write` | apply/reject, create/update document, publish_prompt, link/unlink, create_agent, reindex; **atividades** (criar/editar/iniciar/pausar/concluir/fila/lembretes/undo); `plan_day` com `apply=true` |
+| `admin` | todos, inclusive `purge_deleted_activities` |
 
 Rate limit: 60 req/min por token.
 
