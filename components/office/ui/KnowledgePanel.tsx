@@ -28,10 +28,12 @@ export default function KnowledgePanel({
   agent,
   onClose,
   onChanged,
+  embedded = false,
 }: {
   agent: Agent;
   onClose: () => void;
   onChanged: () => void;
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const { workspaces, reload: reloadWorkspaces } = useWorkspaces();
@@ -142,17 +144,8 @@ export default function KnowledgePanel({
 
   const shown = docs.slice(0, PICKER_LIMIT);
 
-  return (
-    <Drawer
-      title={`Base de conhecimento · ${name}`}
-      subtitle={`${items?.length ?? "…"} ${items?.length === 1 ? "documento" : "documentos"} como referência`}
-      icon={
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-[var(--brand-600)]">
-          <BookOpen className="h-4 w-4" />
-        </span>
-      }
-      onClose={onClose}
-    >
+  const body = (
+    <>
       <p className="text-xs leading-relaxed text-[var(--muted)]">
         São os documentos que {name} usa como referência. Quando a IA estiver ligada (etapa 4), as respostas de {name} vão
         se basear no que estiver aqui.
@@ -180,10 +173,27 @@ export default function KnowledgePanel({
                   <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
                 </Link>
                 <p className="truncate text-[11px] text-[var(--muted)]">
-                  {item.workspaceName}
+                  {item.kind ?? "contexto"} · {item.indexStatus ?? "pending"} · {item.workspaceName}
                   {item.folderName ? ` · ${item.folderName}` : ""} · {formatDateTime(item.updatedAt)}
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  setBusy(`reindex-${item.fileId}`);
+                  try {
+                    await apiPost("/api/knowledge/reindex", { fileId: item.fileId });
+                  } catch (cause) {
+                    setError(cause instanceof Error ? cause.message : "Falha ao reindexar");
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+                disabled={Boolean(busy)}
+                className="text-[11px] text-[var(--brand-600)]"
+              >
+                reindex
+              </button>
               <button
                 type="button"
                 onClick={() => detach(item.fileId)}
@@ -275,6 +285,23 @@ export default function KnowledgePanel({
           Mostrando {PICKER_LIMIT} de {docs.length}. Busque para achar outros.
         </p>
       )}
+    </>
+  );
+
+  if (embedded) return <div className="px-4 pb-4">{body}</div>;
+
+  return (
+    <Drawer
+      title={`Base de conhecimento · ${name}`}
+      subtitle={`${items?.length ?? "…"} ${items?.length === 1 ? "documento" : "documentos"} como referência`}
+      icon={
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-[var(--brand-600)]">
+          <BookOpen className="h-4 w-4" />
+        </span>
+      }
+      onClose={onClose}
+    >
+      {body}
     </Drawer>
   );
 }

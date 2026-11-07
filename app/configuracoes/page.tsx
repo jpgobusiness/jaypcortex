@@ -42,6 +42,9 @@ export default function ConfiguracoesPage() {
           onChange={load}
         />
         <TypesSection types={types} loading={loading} onChange={load} />
+        <div className="lg:col-span-2">
+          <McpTokensSection />
+        </div>
       </div>
     </div>
   );
@@ -290,6 +293,103 @@ function TypesSection({
           <Plus className="h-4 w-4" /> Adicionar
         </Button>
       </div>
+    </section>
+  );
+}
+
+type McpTokenRow = {
+  id: string;
+  name: string;
+  prefix?: string;
+  scopes: string[];
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+};
+
+function McpTokensSection() {
+  const [tokens, setTokens] = useState<McpTokenRow[]>([]);
+  const [name, setName] = useState("");
+  const [plain, setPlain] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      setTokens(await apiGet("/api/mcp-tokens"));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sem permissão para tokens MCP");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function create() {
+    setError(null);
+    try {
+      const created = await apiPost<{ token: string }>("/api/mcp-tokens", {
+        name: name.trim() || "mcp",
+        scopes: ["read", "propose", "write"],
+      });
+      setPlain(created.token);
+      setName("");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha ao gerar token");
+    }
+  }
+
+  async function revoke(id: string) {
+    await apiDelete(`/api/mcp-tokens/${id}`);
+    await load();
+  }
+
+  return (
+    <section className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5">
+      <h3 className="mb-1 text-sm font-semibold text-[var(--foreground)]">Tokens MCP</h3>
+      <p className="mb-4 text-xs text-[var(--muted)]">
+        Bearer para Cursor, Claude e Amazon Q. URL:{" "}
+        <code>https://jaypcortex.vercel.app/api/mcp</code>. O valor aparece só na criação.
+      </p>
+      {error && <p className="mb-3 text-xs text-red-600">{error}</p>}
+      {plain && (
+        <p className="mb-3 break-all rounded-lg bg-[var(--surface-2)] p-3 font-mono text-xs">{plain}</p>
+      )}
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do token" />
+        <Button onClick={() => void create()}>Gerar token</Button>
+      </div>
+      {loading ? (
+        <p className="text-sm text-[var(--muted)]">Carregando...</p>
+      ) : (
+        <ul className="space-y-2">
+          {tokens.map((t) => (
+            <li key={t.id} className="flex items-center justify-between rounded-lg border border-[var(--border)] p-3 text-sm">
+              <div>
+                <p className="font-medium">
+                  {t.name}{" "}
+                  {t.prefix ? <span className="font-mono text-[11px] text-[var(--muted)]">{t.prefix}…</span> : null}
+                </p>
+                <p className="text-xs text-[var(--muted)]">
+                  {t.scopes.join(", ")} · {t.revokedAt ? "revogado" : "ativo"}
+                </p>
+              </div>
+              {!t.revokedAt && (
+                <button type="button" onClick={() => void revoke(t.id)} className="text-xs text-red-600">
+                  Revogar
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

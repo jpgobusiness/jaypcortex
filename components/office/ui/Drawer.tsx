@@ -11,6 +11,7 @@ export default function Drawer({
   onClose,
   children,
   footer,
+  wide = false,
 }: {
   title: string;
   subtitle?: React.ReactNode;
@@ -18,6 +19,7 @@ export default function Drawer({
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  wide?: boolean;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -29,7 +31,7 @@ export default function Drawer({
 
   return (
     <aside
-      className="animate-slide-in-right absolute inset-y-3 right-3 z-50 flex w-[min(380px,calc(100%-1.5rem))] flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]"
+      className={`animate-slide-in-right absolute inset-y-3 right-3 z-50 flex flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)] ${wide ? "w-[min(560px,calc(100%-1.5rem))]" : "w-[min(380px,calc(100%-1.5rem))]"}`}
       aria-label={title}
     >
       <header className="flex items-start gap-3 border-b border-[var(--border)] px-4 py-3.5">

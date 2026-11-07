@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import FileEditor from "@/components/workspaces/FileEditor";
 import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
-import { apiDelete, apiGet, apiPatch } from "@/lib/fetcher";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/fetcher";
 import {
   DEFAULT_FILE_TITLE,
   fileHref,
@@ -21,6 +21,7 @@ import {
   workspaceHref,
 } from "@/lib/workspaces";
 import type { WorkspaceFileDetail, WorkspaceFileSummary } from "@/lib/types";
+import { DOCUMENT_KINDS, KIND_LABELS, type DocumentKind } from "@/lib/knowledge/kinds";
 
 /** Espera depois da última tecla antes de salvar. */
 const SAVE_DELAY_MS = 800;
@@ -216,6 +217,7 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
           </button>
         </div>
       </div>
+      <FileMetaBar fileId={fileId} file={file} onPatched={(saved) => setSavedAt(saved.updatedAt)} />
 
       {/* Props estáveis: o editor não renderiza de novo a cada tecla do título. */}
       <FileEditor
@@ -225,6 +227,80 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
         onTitleChange={handleTitleChange}
         onContentChange={handleContentChange}
       />
+    </div>
+  );
+}
+
+function FileMetaBar({
+  fileId,
+  file,
+  onPatched,
+}: {
+  fileId: string;
+  file: WorkspaceFileDetail & { kind?: string; tags?: string[]; indexStatus?: string; source?: string };
+  onPatched: (saved: WorkspaceFileSummary) => void;
+}) {
+  const [kind, setKind] = useState(file.kind ?? "contexto");
+  const [tags, setTags] = useState((file.tags ?? []).join(", "));
+  const [revisions, setRevisions] = useState<{ id: string; createdAt: string; source: string }[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  async function saveMeta() {
+    const saved = await apiPatch<WorkspaceFileSummary>(`/api/workspaces/files/${fileId}`, {
+      kind,
+      tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+    });
+    onPatched(saved);
+  }
+
+  async function loadHistory() {
+    setShowHistory((v) => !v);
+    if (!showHistory) {
+      setRevisions(await apiGet(`/api/workspaces/files/${fileId}/revisions`));
+    }
+  }
+
+  async function restore(revisionId: string) {
+    const saved = await apiPost<WorkspaceFileSummary>(`/api/workspaces/files/${fileId}/revisions`, { revisionId });
+    onPatched(saved);
+    window.location.reload();
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-b border-[var(--border)] bg-[#fafafa] px-4 py-2 text-xs sm:flex-row sm:items-center sm:px-6">
+      <select
+        value={kind}
+        onChange={(e) => setKind(e.target.value)}
+        onBlur={() => void saveMeta()}
+        className="h-8 rounded-md border border-[var(--border)] bg-white px-2"
+      >
+        {DOCUMENT_KINDS.map((k) => (
+          <option key={k} value={k}>{KIND_LABELS[k as DocumentKind]}</option>
+        ))}
+      </select>
+      <input
+        value={tags}
+        onChange={(e) => setTags(e.target.value)}
+        onBlur={() => void saveMeta()}
+        placeholder="tags, separadas por vírgula"
+        className="h-8 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-white px-2"
+      />
+      <span className="text-[var(--muted)]">
+        {file.indexStatus ?? "pending"} · {file.source ?? "ui"}
+      </span>
+      <button type="button" onClick={() => void loadHistory()} className="font-medium text-[var(--brand-600)]">
+        Histórico
+      </button>
+      {showHistory && (
+        <ul className="w-full sm:w-auto">
+          {revisions.map((rev) => (
+            <li key={rev.id} className="flex items-center gap-2 py-0.5">
+              <span>{new Date(rev.createdAt).toLocaleString("pt-BR")} · {rev.source}</span>
+              <button type="button" className="text-[var(--brand-600)]" onClick={() => void restore(rev.id)}>restaurar</button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

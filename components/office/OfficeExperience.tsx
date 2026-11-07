@@ -19,7 +19,7 @@ import type { CameraApi } from "@/components/office/CameraRig";
 import AgentCard from "@/components/office/ui/AgentCard";
 import AgentFormModal from "@/components/office/ui/AgentFormModal";
 import CortexPanel from "@/components/office/ui/CortexPanel";
-import KnowledgePanel from "@/components/office/ui/KnowledgePanel";
+import AgentStudio from "@/components/office/ui/AgentStudio";
 import { STARTER_TEAM, suggestedLook } from "@/components/office/presets";
 import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
 import { apiDelete, apiGet, apiPost } from "@/lib/fetcher";
@@ -430,8 +430,8 @@ export default function OfficeExperience() {
       )}
 
       {knowledgeAgent && (
-        <KnowledgePanel
-          key={`knowledge-${knowledgeAgent.id}`}
+        <AgentStudio
+          key={`studio-${knowledgeAgent.id}`}
           agent={knowledgeAgent}
           onClose={() => setPanel(null)}
           onChanged={() => void load()}
