@@ -7,6 +7,7 @@ import {
   Check,
   X,
   Play,
+  Pause,
   Link2,
   Search,
   ListChecks,
@@ -50,6 +51,10 @@ export default function PriorityQueue({
     [statuses]
   );
   const doneStatus = useMemo(() => statuses.find((s) => s.isDone), [statuses]);
+  const inProgressKeys = useMemo(
+    () => new Set(statuses.filter((s) => s.isInProgress || s.key === "in_progress").map((s) => s.key)),
+    [statuses]
+  );
 
   const queue = useMemo(
     () =>
@@ -110,13 +115,23 @@ export default function PriorityQueue({
     persistOrder(ids);
   }
 
+  async function startOrPause(a: Activity) {
+    const running = inProgressKeys.has(a.status);
+    await apiPost(`/api/activities/${a.id}/${running ? "pause" : "start"}`, {});
+    onChanged();
+  }
+
   async function complete(a: Activity) {
     if (!doneStatus) {
       alert("Nenhum status marcado como 'Conclui a atividade' em Configurações.");
       return;
     }
     setOrdered((prev) => prev.filter((x) => x.id !== a.id));
-    await apiPatch(`/api/activities/${a.id}`, { status: doneStatus.key });
+    try {
+      await apiPost(`/api/activities/${a.id}/complete`, {});
+    } catch {
+      await apiPatch(`/api/activities/${a.id}`, { status: doneStatus.key });
+    }
     onChanged();
   }
 
@@ -326,6 +341,14 @@ export default function PriorityQueue({
 
                 {/* Ações */}
                 <div className="flex shrink-0 items-center gap-1 self-stretch sm:self-auto">
+                  <button
+                    onClick={() => startOrPause(a)}
+                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-slate-700 sm:flex-none sm:px-2.5 sm:py-1.5"
+                    title={inProgressKeys.has(a.status) ? "Pausar" : "Iniciar"}
+                  >
+                    {inProgressKeys.has(a.status) ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                    {inProgressKeys.has(a.status) ? "Pausar" : "Iniciar"}
+                  </button>
                   <button
                     onClick={() => complete(a)}
                     className="inline-flex min-h-10 flex-1 items-center justify-center gap-1 rounded-lg bg-green-500 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-green-600 sm:flex-none sm:px-2.5 sm:py-1.5"

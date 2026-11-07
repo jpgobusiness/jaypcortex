@@ -17,6 +17,7 @@ export type ActivityStatusDef = {
   color: string;
   order: number;
   isDone: boolean;
+  isInProgress?: boolean;
   _count?: { activities: number };
 };
 
@@ -33,6 +34,22 @@ export type Activity = {
   notes: string | null;
   completedAt: string | null;
   queueOrder: number | null; // posição na fila de prioridades
+  description?: string | null;
+  startedAt?: string | null;
+  estimatedMinutes?: number | null;
+  spentMinutes?: number | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
+  importance?: number | null;
+  urgency?: number | null;
+  energy?: string | null;
+  context?: string | null;
+  tags?: string[];
+  area?: string | null;
+  waitingOn?: string | null;
+  recurrenceRule?: string | null;
+  deletedAt?: string | null;
+  source?: string | null;
   createdAt: string;
   updatedAt: string;
 };

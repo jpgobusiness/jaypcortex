@@ -6,9 +6,9 @@ import {
   Plus,
   Check,
   Trash2,
-  Link2,
   List,
   LayoutGrid,
+  RotateCcw,
 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/form";
@@ -17,7 +17,8 @@ import ActivityModal from "@/components/activities/ActivityModal";
 import KanbanBoard from "@/components/activities/KanbanBoard";
 import PriorityQueue from "@/components/activities/PriorityQueue";
 import ActivityMindMap from "@/components/activities/ActivityMindMap";
-import { apiGet, apiPatch, apiDelete } from "@/lib/fetcher";
+import TodayBriefing from "@/components/activities/TodayBriefing";
+import { apiGet, apiPatch, apiDelete, apiPost } from "@/lib/fetcher";
 import { formatDate } from "@/lib/format";
 import type { Activity, ActivityStatusDef, ActivityType } from "@/lib/types";
 
@@ -40,10 +41,14 @@ export default function AtividadesPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Activity | null>(null);
+  const [trash, setTrash] = useState<Activity[]>([]);
 
   const loadActivities = useCallback(async () => {
     setActivities(await apiGet<Activity[]>("/api/activities"));
-  }, []);
+    if (tab === "trash") {
+      setTrash(await apiGet<Activity[]>("/api/activities/trash"));
+    }
+  }, [tab]);
 
   const reload = useCallback(async () => {
     await loadActivities();
@@ -69,6 +74,13 @@ export default function AtividadesPage() {
     loadAll();
   }, [loadAll]);
 
+  useEffect(() => {
+    if (tab !== "trash") return;
+    apiGet<Activity[]>("/api/activities/trash")
+      .then(setTrash)
+      .catch(() => setTrash([]));
+  }, [tab]);
+
   const statusByKey = useMemo(
     () => new Map(statuses.map((s) => [s.key, s])),
     [statuses]
@@ -76,7 +88,9 @@ export default function AtividadesPage() {
 
   const filtered = useMemo(
     () =>
-      tab === "all" ? activities : activities.filter((a) => a.status === tab),
+      tab === "all" || tab === "queue" || tab === "trash"
+        ? activities
+        : activities.filter((a) => a.status === tab),
     [activities, tab]
   );
 
@@ -98,8 +112,13 @@ export default function AtividadesPage() {
   }
 
   async function remove(a: Activity) {
-    if (!confirm(`Excluir a atividade "${a.title}"?`)) return;
+    if (!confirm(`Enviar "${a.title}" para a lixeira? Dá para restaurar.`)) return;
     await apiDelete(`/api/activities/${a.id}`);
+    await reload();
+  }
+
+  async function restore(a: Activity) {
+    await apiPost(`/api/activities/${a.id}/restore`, {});
     await reload();
   }
 
@@ -135,7 +154,14 @@ export default function AtividadesPage() {
         )}
 
         {section === "activities" && (
-          <ActivitiesSection
+          <>
+            <TodayBriefing
+              onOpen={(id) => {
+                const found = activities.find((a) => a.id === id);
+                if (found) openActivityEdit(found);
+              }}
+            />
+            <ActivitiesSection
             loading={loading}
             tab={tab}
             setTab={setTab}
@@ -146,11 +172,14 @@ export default function AtividadesPage() {
             statusByKey={statusByKey}
             filtered={filtered}
             activities={activities}
+            trash={trash}
             onToggle={toggle}
             onRemove={remove}
+            onRestore={restore}
             onEdit={openActivityEdit}
             onReload={reload}
           />
+          </>
         )}
       </div>
 
@@ -168,18 +197,20 @@ export default function AtividadesPage() {
 
 /* ---------------- Aba: Atividades (Lista/Kanban) ---------------- */
 
-function ActivitiesSection({ loading, tab, setTab, view, setView, counts, statuses, statusByKey, filtered, activities, onToggle, onRemove, onEdit, onReload }: {
+function ActivitiesSection({ loading, tab, setTab, view, setView, counts, statuses, statusByKey, filtered, activities, trash, onToggle, onRemove, onRestore, onEdit, onReload }: {
   loading: boolean; tab: string; setTab: (t: string) => void; view: "list" | "kanban"; setView: (v: "list" | "kanban") => void;
   counts: Record<string, number>; statuses: ActivityStatusDef[]; statusByKey: Map<string, ActivityStatusDef>;
-  filtered: Activity[]; activities: Activity[]; onToggle: (a: Activity) => void; onRemove: (a: Activity) => void; onEdit: (a: Activity) => void; onReload: () => void;
+  filtered: Activity[]; activities: Activity[]; trash: Activity[]; onToggle: (a: Activity) => void; onRemove: (a: Activity) => void; onRestore: (a: Activity) => void; onEdit: (a: Activity) => void; onReload: () => void;
 }) {
   const queueCount = activities.filter((a) => a.queueOrder != null).length;
   const tabs = [
     { key: "queue", label: "Fila" },
     { key: "all", label: "Todas" },
     ...statuses.map((s) => ({ key: s.key, label: s.name })),
+    { key: "trash", label: "Lixeira" },
   ];
   const showQueue = tab === "queue";
+  const showTrash = tab === "trash";
 
   return (
     <>
@@ -189,12 +220,12 @@ function ActivitiesSection({ loading, tab, setTab, view, setView, counts, status
           {tabs.map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)} className={`-mb-px border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${tab === t.key ? "border-[var(--brand)] text-[var(--brand-600)]" : "border-transparent text-[var(--muted)] hover:text-[var(--foreground)]"}`}>
               {t.label}
-              <span className="ml-1.5 rounded-full bg-black/[0.05] px-1.5 py-0.5 text-[11px]">{t.key === "queue" ? queueCount : (counts[t.key] ?? 0)}</span>
+              <span className="ml-1.5 rounded-full bg-black/[0.05] px-1.5 py-0.5 text-[11px]">{t.key === "queue" ? queueCount : t.key === "trash" ? trash.length : (counts[t.key] ?? 0)}</span>
             </button>
           ))}
           </div>
         </div>
-        {!showQueue && (
+        {!showQueue && !showTrash && (
         <div className="mb-2 flex w-full items-center gap-1 rounded-lg border border-[var(--border)] bg-white p-0.5 sm:w-auto">
           <button onClick={() => setView("list")} className={`inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors sm:flex-none ${view === "list" ? "bg-[var(--brand)] text-white" : "text-[var(--muted)] hover:text-[var(--foreground)]"}`}>
             <List className="h-4 w-4" /> Lista
@@ -213,6 +244,24 @@ function ActivitiesSection({ loading, tab, setTab, view, setView, counts, status
             statuses={statuses}
             onChanged={onReload}
           />
+        )
+      ) : showTrash ? (
+        loading ? <p className="py-10 text-center text-[var(--muted)]">Carregando...</p> : trash.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-[var(--border)] py-10 text-center text-[var(--muted)]">Lixeira vazia.</p>
+        ) : (
+          <div className="space-y-2">
+            {trash.map((a) => (
+              <div key={a.id} className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-3 sm:p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-[var(--muted)]">{a.title}</p>
+                  {a.source && a.source !== "ui" ? <p className="text-[11px] text-[var(--muted)]">Origem: {a.source}</p> : null}
+                </div>
+                <button onClick={() => onRestore(a)} className="inline-flex min-h-10 items-center gap-1 rounded-lg px-3 text-xs font-medium text-[var(--brand-600)] hover:bg-black/[0.04]">
+                  <RotateCcw className="h-3.5 w-3.5" /> Restaurar
+                </button>
+              </div>
+            ))}
+          </div>
         )
       ) : view === "kanban" ? (
         loading ? <p className="py-10 text-center text-[var(--muted)]">Carregando...</p> : (
