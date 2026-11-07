@@ -152,6 +152,8 @@ export function randomAlphanumeric(length: number): string {
 export const DEFAULT_REDIRECT_PATTERNS = [
   "https://*.quicksight.aws.amazon.com/*",
   "https://*.quicksight.aws/*",
+  "https://chatgpt.com/connector_platform_oauth_redirect",
+  "https://chat.openai.com/connector_platform_oauth_redirect",
 ];
 
 export function redirectPatterns(): string[] {
@@ -188,7 +190,7 @@ export function isRedirectUriAllowed(
     return { ok: false, reason: "redirect_uri não registrada neste cliente" };
   }
   if (!allowlisted && !registered) {
-    return { ok: false, reason: "redirect_uri fora da allowlist QuickSight" };
+    return { ok: false, reason: "redirect_uri fora da allowlist OAuth" };
   }
   return { ok: true };
 }

@@ -10,6 +10,7 @@ import { tiptapToMarkdown } from "@/lib/knowledge/markdown";
 import { applyProposal, createProposal, rejectProposal } from "@/lib/proposals/service";
 import { writeAudit } from "@/lib/mcp/audit";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
+import { registerActivityTools } from "@/lib/mcp/register-activity-tools";
 import { parseEditorDocument } from "@/lib/workspaces";
 
 type ToolServer = {
@@ -33,6 +34,7 @@ export function registerMcpTools(
   ctx: { tokenId: string; profileId: string; scopes: string[] }
 ) {
   const actor = { createdBy: ctx.profileId || null, source: "mcp" as const };
+  registerActivityTools(server, ctx);
 
   server.registerTool("list_agents", {
     description: "Lista agentes com slug, papel, status, versão do prompt e nº de docs",

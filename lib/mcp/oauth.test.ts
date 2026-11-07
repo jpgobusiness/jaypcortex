@@ -110,3 +110,10 @@ test("redirect URI allowlist QuickSight", () => {
   assert.equal(ok.ok && !("reason" in ok), true);
   assert.equal(bad.ok, false);
 });
+
+test("redirect URI ChatGPT connector", () => {
+  const gpt = isRedirectUriAllowed("https://chatgpt.com/connector_platform_oauth_redirect", []);
+  const openai = isRedirectUriAllowed("https://chat.openai.com/connector_platform_oauth_redirect", []);
+  assert.equal(gpt.ok, true);
+  assert.equal(openai.ok, true);
+});
