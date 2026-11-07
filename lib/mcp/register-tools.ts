@@ -13,19 +13,7 @@ import { hasScope, type McpScope } from "@/lib/mcp/tokens";
 import { registerActivityTools } from "@/lib/mcp/register-activity-tools";
 import { registerCortexTools } from "@/lib/mcp/register-cortex-tools";
 import { parseEditorDocument } from "@/lib/workspaces";
-
-type ToolServer = {
-  registerTool: (
-    name: string,
-    config: { title?: string; description: string; inputSchema: unknown },
-    handler: (args: Record<string, unknown>) => Promise<{ content: { type: "text"; text: string }[] }>
-  ) => void;
-  registerPrompt?: (
-    name: string,
-    config: { title?: string; description: string; argsSchema?: unknown },
-    handler: (args: Record<string, unknown>) => Promise<{ messages: unknown[] }>
-  ) => void;
-};
+import { readMeta, writeMeta, type ToolServer } from "@/lib/mcp/annotations";
 
 function text(data: unknown) {
   return { content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] };
@@ -65,6 +53,7 @@ export function registerMcpTools(
   registerCortexTools(server, ctx);
 
   server.registerTool("list_agents", {
+    ...readMeta("Listar agentes"),
     description: "Lista agentes com slug, papel, status, versão do prompt e nº de docs",
     inputSchema: z.object({}),
   }, async () => {
@@ -81,6 +70,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("get_agent", {
+    ...readMeta("Ver agente"),
     description: "Configuração do agente. Não executa nada; para agir use cortex + tools sugeridas.",
     inputSchema: z.object({ agent: z.string() }),
   }, wrap(async ({ agent }) => {
@@ -117,6 +107,7 @@ export function registerMcpTools(
   }));
 
   server.registerTool("get_agent_prompt", {
+    ...readMeta("Prompt do agente"),
     description: "Prompt composto ativo e rascunho atual das camadas. Não executa o agente; para agir use cortex.",
     inputSchema: z.object({ agent: z.string() }),
   }, wrap(async ({ agent }) => {
@@ -135,6 +126,7 @@ export function registerMcpTools(
   }));
 
   server.registerTool("list_workspaces", {
+    ...readMeta("Listar espaços"),
     description: "Lista espaços de trabalho",
     inputSchema: z.object({}),
   }, async () => {
@@ -147,6 +139,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("list_documents", {
+    ...readMeta("Listar documentos"),
     description: "Lista documentos da base de conhecimento. Só documentos — não contém tarefas. Para tarefas use list_activities ou cortex.",
     inputSchema: z.object({
       workspaceId: z.string().optional(),
@@ -181,6 +174,7 @@ export function registerMcpTools(
   }));
 
   server.registerTool("read_document", {
+    ...readMeta("Ler documento"),
     description: "Lê um documento da base de conhecimento. Só documentos — não contém tarefas. Para tarefas use list_activities ou cortex.",
     inputSchema: z.object({ file_id: z.string() }),
   }, wrap(async ({ file_id }) => {
@@ -209,6 +203,7 @@ export function registerMcpTools(
   }));
 
   server.registerTool("search_knowledge", {
+    ...readMeta("Buscar na base"),
     description: "Busca híbrida na base de conhecimento (semântica + FTS). Só documentos — não contém tarefas. Para tarefas use list_activities ou cortex.",
     inputSchema: z.object({
       query: z.string(),
@@ -233,6 +228,7 @@ export function registerMcpTools(
   }));
 
   server.registerTool("list_proposals", {
+    ...readMeta("Listar propostas"),
     description: "Lista propostas de mudança",
     inputSchema: z.object({ agent: z.string().optional(), status: z.string().optional() }),
   }, async (args) => {
@@ -250,6 +246,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("get_proposal", {
+    ...readMeta("Ver proposta"),
     description: "Detalhe de uma proposta com diff",
     inputSchema: z.object({ id: z.string() }),
   }, async ({ id }) => {
@@ -260,6 +257,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("get_document_history", {
+    ...readMeta("Histórico do documento"),
     description: "Revisões de um arquivo",
     inputSchema: z.object({ file_id: z.string() }),
   }, async ({ file_id }) => {
@@ -274,6 +272,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("propose_document_change", {
+    ...writeMeta("Propor mudança"),
     description: "Cria rascunho de mudança em um arquivo existente (markdown novo)",
     inputSchema: z.object({
       file_id: z.string(),
@@ -302,6 +301,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("propose_new_document", {
+    ...writeMeta("Propor documento"),
     description: "Rascunho de arquivo novo na sala do agente",
     inputSchema: z.object({
       agent: z.string(),
@@ -338,6 +338,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("propose_prompt_change", {
+    ...writeMeta("Propor prompt"),
     description: "Rascunho de mudança em uma camada de prompt",
     inputSchema: z.object({
       agent: z.string(),
@@ -365,6 +366,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("propose_agent_config", {
+    ...writeMeta("Propor config"),
     description: "Rascunho de config do agente (model, temperature, retrieval, capabilities)",
     inputSchema: z.object({
       agent: z.string(),
@@ -394,6 +396,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("apply_proposal", {
+    ...writeMeta("Aplicar proposta", { idempotent: false }),
     description: "Aplica uma proposta pendente (checa conflito, reindexa, revisão)",
     inputSchema: z.object({ id: z.string(), publish: z.boolean().optional() }),
   }, async (args) => {
@@ -404,6 +407,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("reject_proposal", {
+    ...writeMeta("Rejeitar proposta", { destructive: true, idempotent: true }),
     description: "Rejeita uma proposta pendente",
     inputSchema: z.object({ id: z.string() }),
   }, async ({ id }) => {
@@ -414,6 +418,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("publish_prompt", {
+    ...writeMeta("Publicar prompt"),
     description: "Publica uma nova versão imutável do prompt composto",
     inputSchema: z.object({ agent: z.string(), note: z.string().optional() }),
   }, async (args) => {
@@ -426,6 +431,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("create_document", {
+    ...writeMeta("Criar documento"),
     description: "Cria arquivo já aplicado (TipTap no banco). Prefira propor quando possível.",
     inputSchema: z.object({
       agent: z.string(),
@@ -463,6 +469,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("update_document", {
+    ...writeMeta("Atualizar documento", { idempotent: true }),
     description: "Atualiza arquivo já aplicado",
     inputSchema: z.object({ file_id: z.string(), markdown: z.string(), title: z.string().optional() }),
   }, async (args) => {
@@ -479,6 +486,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("link_knowledge", {
+    ...writeMeta("Vincular à base", { idempotent: true }),
     description: "Vincula arquivo à base do agente",
     inputSchema: z.object({ agent: z.string(), file_id: z.string() }),
   }, async (args) => {
@@ -494,6 +502,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("unlink_knowledge", {
+    ...writeMeta("Desvincular da base", { destructive: true, idempotent: true }),
     description: "Remove vínculo agente ↔ arquivo",
     inputSchema: z.object({ agent: z.string(), file_id: z.string() }),
   }, async (args) => {
@@ -505,6 +514,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("create_agent", {
+    ...writeMeta("Criar agente"),
     description: "Cria agente + sala + pastas padrão (Prompt, Base, Templates, Entregas)",
     inputSchema: z.object({
       name: z.string(),
@@ -527,6 +537,7 @@ export function registerMcpTools(
   });
 
   server.registerTool("reindex_document", {
+    ...writeMeta("Reindexar documento", { idempotent: true }),
     description: "Reindexa um arquivo (FTS + embeddings se houver chave)",
     inputSchema: z.object({ file_id: z.string() }),
   }, async ({ file_id }) => {

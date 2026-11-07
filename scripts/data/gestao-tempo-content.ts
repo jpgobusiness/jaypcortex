@@ -280,7 +280,7 @@ Chame \`plan_day\` com \`busy_blocks\`. Liste os blocos (início–fim + tarefa)
 export const ACTIVITY_TOOLS = [
   "list_activities", "get_activity", "search_activities", "get_queue",
   "list_activity_statuses", "list_activity_types",
-  "get_daily_briefing", "get_weekly_review", "plan_day", "get_activity_history",
+  "get_daily_briefing", "get_weekly_review", "plan_day", "apply_day_plan", "get_activity_history",
   "create_activity", "create_activities_bulk", "update_activity",
   "start_activity", "pause_activity", "complete_activity", "reopen_activity",
   "set_activity_status", "delete_activity", "restore_activity",

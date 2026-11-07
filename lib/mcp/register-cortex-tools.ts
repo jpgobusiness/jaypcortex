@@ -6,19 +6,7 @@ import { buildAgentContext } from "@/lib/cortex/context";
 import { route } from "@/lib/cortex/router";
 import { asAgentRouting } from "@/lib/cortex/routing-schema";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
-
-type ToolServer = {
-  registerTool: (
-    name: string,
-    config: { title?: string; description: string; inputSchema: unknown },
-    handler: (args: Record<string, unknown>) => Promise<{ content: { type: "text"; text: string }[] }>
-  ) => void;
-  registerPrompt?: (
-    name: string,
-    config: { title?: string; description: string; argsSchema?: unknown },
-    handler: (args: Record<string, unknown>) => Promise<{ messages: unknown[] }>
-  ) => void;
-};
+import { readMeta, type ToolServer } from "@/lib/mcp/annotations";
 
 function text(data: unknown) {
   return { content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] };
@@ -35,7 +23,8 @@ const TOOL_GUIDE: Record<string, string> = {
   get_queue: "Fila de execução.",
   get_daily_briefing: "Cérebro do dia (top 3, atrasadas, alertas).",
   get_weekly_review: "Revisão da semana.",
-  plan_day: "Encaixar tarefas nos buracos da agenda (busy_blocks). apply=true grava.",
+  plan_day: "Encaixar tarefas nos horários livres (só leitura). Para gravar use apply_day_plan.",
+  apply_day_plan: "Grava o plano do dia nas tarefas.",
   create_activity: "Criar uma tarefa. Datas em PT-BR.",
   create_activities_bulk: "Criar até 30 tarefas.",
   update_activity: "Editar campos.",
@@ -73,6 +62,7 @@ export function registerCortexTools(
   };
 
   server.registerTool("cortex", {
+    ...readMeta("Porta de entrada"),
     description:
       "PORTA DE ENTRADA. Chame SEMPRE primeiro para qualquer pedido sobre a plataforma JayP Cortex (tarefas, agenda, prioridades, metodologia, agentes, MAP). Retorna qual agente atende, o prompt dele, conhecimento relevante, dados vivos e as tools a executar em seguida.",
     inputSchema: z.object({
@@ -134,6 +124,7 @@ export function registerCortexTools(
   });
 
   server.registerTool("get_agent_context", {
+    ...readMeta("Contexto do agente"),
     description: "Pacote do agente (prompt + conhecimento + dados vivos + tools sugeridas) sem roteamento. Passe o slug.",
     inputSchema: z.object({
       agent: z.string(),
@@ -167,6 +158,7 @@ export function registerCortexTools(
   });
 
   server.registerTool("list_agent_tools", {
+    ...readMeta("Tools do agente"),
     description: "Tools permitidas daquele agente e quando usar cada uma.",
     inputSchema: z.object({ agent: z.string() }),
   }, async (args) => {

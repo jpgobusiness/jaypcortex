@@ -41,4 +41,4 @@ Validar o clique no app ChatGPT com o João na sessão (OAuth + voz). Não bloqu
 
 ## O que a plataforma não lê
 
-Outlook/Graph: o ChatGPT (ou o Quick) lê a agenda e envia `busy_blocks` em `get_daily_briefing` / `plan_day`.
+Outlook/Graph: o ChatGPT (ou o Quick) lê a agenda e envia `busy_blocks` em `get_daily_briefing` / `plan_day`. Para gravar o plano, `apply_day_plan`.

@@ -3,7 +3,7 @@ import type { AgentRouting } from "@/lib/cortex/types";
 const LIVE_ACTIVITY_TOOLS = [
   "list_activities", "get_activity", "search_activities", "get_queue",
   "list_activity_statuses", "list_activity_types",
-  "get_daily_briefing", "get_weekly_review", "plan_day", "get_activity_history",
+  "get_daily_briefing", "get_weekly_review", "plan_day", "apply_day_plan", "get_activity_history",
   "create_activity", "create_activities_bulk", "update_activity",
   "start_activity", "pause_activity", "complete_activity", "reopen_activity",
   "set_activity_status", "delete_activity", "restore_activity",
@@ -160,7 +160,7 @@ export const GESTAO_TEMPO_ROUTING: AgentRouting = {
     {
       key: "plano_do_dia",
       mode: "acao",
-      tools: ["plan_day"],
+      tools: ["plan_day", "apply_day_plan"],
       examples: ["planeja meu dia", "encaixa as tarefas na agenda", "monta o plano do dia"],
     },
     {

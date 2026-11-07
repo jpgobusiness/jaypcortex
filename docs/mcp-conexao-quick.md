@@ -91,26 +91,28 @@ Fluxo:
 4. Confirmar com o usuário as que tiverem `requires_confirmation`.
 5. Resposta curta, pronta para voz.
 
-## Após deploy com tools novas: atualizar/recriar as tools do conector no Quick
+## Após deploy com tools novas: habilitar as tools no conector do Quick
 
-O conector do Quick **guarda a lista de tools no momento em que foi criado**. Deploy na Vercel **não** atualiza essa lista sozinho.
+O conector do Quick **guarda a lista de tools no momento em que foi criado**. Deploy na Vercel **não** atualiza nem habilita tools novas sozinho.
 
-Depois de um deploy que adiciona tools (`cortex`, atividades, etc.):
+Depois de um deploy que adiciona tools (`cortex`, `apply_day_plan`, atividades, etc.):
 
-1. No Quick, abra o conector `JayPCortexChat` (ou o que estiver em uso).
-2. Atualize / recarregue as tools do MCP (ou apague e recrie o conector com a mesma URL `https://jaypcortex.vercel.app/api/mcp` e o mesmo OAuth).
-3. Confira se `cortex`, `list_activities` e `get_daily_briefing` aparecem na lista. Se só houver as ~23 de conhecimento, a lista está velha.
+1. **Customize → Connectors → JayPCortexChat → permissões.** Habilite as tools novas (e as que o Quick tenha desligado).
+2. Se a lista estiver velha (~23 de conhecimento, sem `cortex` / `list_activities`): atualize/recarregue as tools ou recrie o conector com a mesma URL `https://jaypcortex.vercel.app/api/mcp` e o mesmo OAuth.
+3. Confira `cortex`, `list_activities`, `get_daily_briefing`, `apply_day_plan`.
 4. Teste: “lista minhas atividades” deve chamar `cortex` (ou `list_activities`), **nunca** `search_knowledge`.
 
 Sem este passo, o Quick continua caindo na base de conhecimento e ignorando as tools novas.
+
+Toda tool do MCP declara `title` em PT-BR e `annotations` (`readOnlyHint`, `destructiveHint`, `idempotentHint`). `plan_day` é só leitura; para gravar o plano use `apply_day_plan` (`plan_day` com `apply=true` ainda funciona por compatibilidade).
 
 ## Escopos
 
 | Escopo | Tools |
 |---|---|
-| `read` | `cortex`, `get_agent_context`, `list_agent_tools`; list/get agents, documents, search, proposals, history; **atividades** (list/get/search/queue/statuses/types); `get_daily_briefing`, `get_weekly_review`, `plan_day` (sem apply), `get_activity_history` |
+| `read` | `cortex`, `get_agent_context`, `list_agent_tools`; list/get agents, documents, search, proposals, history; **atividades** (list/get/search/queue/statuses/types); `get_daily_briefing`, `get_weekly_review`, `plan_day`, `get_activity_history` |
 | `propose` | propose_* |
-| `write` | apply/reject, create/update document, publish_prompt, link/unlink, create_agent, reindex; **atividades** (criar/editar/iniciar/pausar/concluir/fila/lembretes/undo); `plan_day` com `apply=true` |
+| `write` | apply/reject, create/update document, publish_prompt, link/unlink, create_agent, reindex; **atividades** (criar/editar/iniciar/pausar/concluir/fila/lembretes/undo); `apply_day_plan` (e `plan_day` com `apply=true`, compat) |
 | `admin` | todos, inclusive `purge_deleted_activities` |
 
 Rate limit: 60 req/min por token.

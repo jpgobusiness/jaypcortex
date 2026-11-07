@@ -34,19 +34,7 @@ import {
 import { getDailyBriefing, getWeeklyReview, planDay } from "@/lib/briefing/briefing";
 import { parseDatePhrase } from "@/lib/activities/dates";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
-
-type ToolServer = {
-  registerTool: (
-    name: string,
-    config: { title?: string; description: string; inputSchema: unknown },
-    handler: (args: Record<string, unknown>) => Promise<{ content: { type: "text"; text: string }[] }>
-  ) => void;
-  registerPrompt?: (
-    name: string,
-    config: { title?: string; description: string; argsSchema?: unknown },
-    handler: (args: Record<string, unknown>) => Promise<{ messages: unknown[] }>
-  ) => void;
-};
+import { readMeta, writeMeta, type ToolServer } from "@/lib/mcp/annotations";
 
 function text(data: unknown) {
   return { content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] };
@@ -99,6 +87,7 @@ export function registerActivityTools(
   };
 
   server.registerTool("list_activities", {
+    ...readMeta("Listar tarefas"),
     description: "Dados vivos de tarefas (seção Atividades). Lista tarefas. Filtros: status (key|open|done|all), priority, due (overdue|today|tomorrow|this_week|next_7d|no_date), type, tags, area, q, in_queue, include_deleted, sort (score|due|created|queue). Não use search_knowledge para isso.",
     inputSchema: z.object({
       status: z.string().optional(),
@@ -131,6 +120,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("get_activity", {
+    ...readMeta("Ver tarefa"),
     description: "Dados vivos de tarefas (seção Atividades). Detalhe da tarefa (id ou query), subtarefas, histórico, sessões e lembretes.",
     inputSchema: z.object(idOrQuery),
   }, async (args) => {
@@ -139,6 +129,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("search_activities", {
+    ...readMeta("Buscar tarefas"),
     description: "Dados vivos de tarefas (seção Atividades). Busca textual por título/descrição/notas (ex.: 'proposta Vero'). Não use search_knowledge para achar tarefa.",
     inputSchema: z.object({ q: z.string(), limit: z.number().optional() }),
   }, async (args) => {
@@ -147,6 +138,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("get_queue", {
+    ...readMeta("Ver fila"),
     description: "Dados vivos de tarefas (seção Atividades). Fila de execução em ordem.",
     inputSchema: z.object({}),
   }, async () => {
@@ -155,6 +147,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("list_activity_statuses", {
+    ...readMeta("Listar status"),
     description: "Status configuráveis das tarefas",
     inputSchema: z.object({}),
   }, async () => {
@@ -163,6 +156,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("list_activity_types", {
+    ...readMeta("Listar tipos"),
     description: "Tipos configuráveis das tarefas",
     inputSchema: z.object({}),
   }, async () => {
@@ -171,6 +165,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("get_daily_briefing", {
+    ...readMeta("Briefing do dia"),
     description: "Dados vivos de tarefas (seção Atividades). Cérebro do dia: top 3, atrasadas, vencendo, lembretes, carga vs agenda (busy_blocks) e alertas. Score determinístico.",
     inputSchema: z.object({
       date: z.string().optional(),
@@ -184,6 +179,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("get_weekly_review", {
+    ...readMeta("Revisão da semana"),
     description: "Dados vivos de tarefas (seção Atividades). Revisão da semana: criadas, concluídas, atrasadas, tempo por área, paradas.",
     inputSchema: z.object({ week_start: z.string().optional() }),
   }, async (args) => {
@@ -192,23 +188,45 @@ export function registerActivityTools(
     return wrap(() => getWeeklyReview(d));
   });
 
+  const planShape = z.object({
+    date: z.string().optional(),
+    busy_blocks: z.array(z.object({ start: z.string(), end: z.string(), title: z.string().optional() })).optional(),
+    strategy: z.string().optional(),
+  });
+
+  function runPlan(args: Record<string, unknown>, apply: boolean) {
+    const d = args.date ? parseDatePhrase(String(args.date))?.date : undefined;
+    const busy = Array.isArray(args.busy_blocks) ? args.busy_blocks as { start: string; end: string }[] : [];
+    return wrap(() => planDay({
+      date: d,
+      busyBlocks: busy,
+      strategy: args.strategy ? String(args.strategy) : undefined,
+      apply,
+      actor: actorOf(ctx),
+    }));
+  }
+
   server.registerTool("plan_day", {
-    description: "Encaixa tarefas nos horários livres (busy_blocks da agenda). Não grava sem apply=true (exige write).",
-    inputSchema: z.object({
-      date: z.string().optional(),
-      busy_blocks: z.array(z.object({ start: z.string(), end: z.string(), title: z.string().optional() })).optional(),
-      strategy: z.string().optional(),
-      apply: z.boolean().optional(),
-    }),
+    ...readMeta("Planejar o dia"),
+    description: "Encaixa tarefas nos horários livres (busy_blocks da agenda). Só leitura. Para gravar use apply_day_plan. apply=true ainda funciona (compatibilidade, exige write).",
+    inputSchema: planShape.extend({ apply: z.boolean().optional() }),
   }, async (args) => {
     const apply = Boolean(args.apply);
     assertScope(ctx.scopes, apply ? "write" : "read");
-    const d = args.date ? parseDatePhrase(String(args.date))?.date : undefined;
-    const busy = Array.isArray(args.busy_blocks) ? args.busy_blocks as { start: string; end: string }[] : [];
-    return wrap(() => planDay({ date: d, busyBlocks: busy, strategy: args.strategy ? String(args.strategy) : undefined, apply, actor: actorOf(ctx) }));
+    return runPlan(args, apply);
+  });
+
+  server.registerTool("apply_day_plan", {
+    ...writeMeta("Aplicar plano do dia", { idempotent: true }),
+    description: "Grava o plano do dia (blocos) nas tarefas. Exige write. Prefira esta tool em vez de plan_day com apply=true.",
+    inputSchema: planShape,
+  }, async (args) => {
+    assertScope(ctx.scopes, "write");
+    return runPlan(args, true);
   });
 
   server.registerTool("get_activity_history", {
+    ...readMeta("Histórico da tarefa"),
     description: "Eventos de uma tarefa ou do dia",
     inputSchema: z.object({ id: z.string().optional(), date: z.string().optional() }),
   }, async (args) => {
@@ -268,6 +286,7 @@ export function registerActivityTools(
   }
 
   server.registerTool("create_activity", {
+    ...writeMeta("Criar tarefa", { idempotent: true }),
     description: "Cria uma tarefa. Datas em PT-BR ('hoje','sexta','dia 15'). client_key evita duplicar ditado. add_to_queue opcional.",
     inputSchema: createShape,
   }, async (args) => {
@@ -279,6 +298,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("create_activities_bulk", {
+    ...writeMeta("Criar tarefas em lote", { idempotent: true }),
     description: "Cria até 30 tarefas de uma vez (despejo por voz). Cada item igual a create_activity.",
     inputSchema: z.object({ items: z.array(createShape) }),
   }, async (args) => {
@@ -291,6 +311,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("update_activity", {
+    ...writeMeta("Editar tarefa", { idempotent: true }),
     description: "Edita campos da tarefa (id ou query)",
     inputSchema: createShape.extend(idOrQuery).partial().extend({ id: z.string().optional(), query: z.string().optional() }),
   }, async (args) => {
@@ -306,8 +327,16 @@ export function registerActivityTools(
     });
   });
 
-  const act = (name: string, description: string, fn: (id: string, args: Record<string, unknown>) => Promise<unknown>, extra: Record<string, z.ZodType> = {}) => {
+  const act = (
+    name: string,
+    title: string,
+    description: string,
+    fn: (id: string, args: Record<string, unknown>) => Promise<unknown>,
+    extra: Record<string, z.ZodType> = {},
+    meta?: { destructive?: boolean; idempotent?: boolean }
+  ) => {
     server.registerTool(name, {
+      ...writeMeta(title, meta),
       description,
       inputSchema: z.object({ ...idOrQuery, ...extra }),
     }, async (args) => {
@@ -320,17 +349,17 @@ export function registerActivityTools(
     });
   };
 
-  act("start_activity", "Inicia a tarefa (em andamento + cronômetro). Pausa outra sessão aberta.", async (id) => (await startActivity(id, actorOf(ctx))).presented);
-  act("pause_activity", "Pausa o cronômetro, mantém em andamento", async (id) => (await pauseActivity(id, actorOf(ctx))).presented);
-  act("complete_activity", "Conclui, sai da fila, gera próxima se recorrente", async (id) => (await completeActivity(id, actorOf(ctx))).presented);
-  act("reopen_activity", "Reabre para pendente", async (id) => (await reopenActivity(id, actorOf(ctx))).presented);
-  act("set_activity_status", "Muda status por key", async (id, args) => (await setActivityStatus(id, String(args.status), actorOf(ctx))).presented, { status: z.string() });
-  act("delete_activity", "Lixeira (soft delete). Exige confirm=true.", async (id, args) => (await softDelete(id, actorOf(ctx), args.confirm === true)).presented, { confirm: z.boolean().optional() });
-  act("restore_activity", "Tira da lixeira", async (id) => (await restoreActivity(id, actorOf(ctx))).presented);
-  act("queue_activity", "Coloca na fila", async (id, args) => queueAdd([id], typeof args.position === "number" ? args.position : undefined, actorOf(ctx)), { position: z.number().optional() });
-  act("unqueue_activity", "Tira da fila", async (id) => queueRemove(id, actorOf(ctx)));
-  act("move_in_queue", "Move para a posição (1 = topo)", async (id, args) => queueMove(id, Number(args.position || 1), actorOf(ctx)), { position: z.number() });
-  act("reschedule_activity", "Muda prazo e/ou bloco de tempo", async (id, args) => (await rescheduleActivity(id, {
+  act("start_activity", "Iniciar tarefa", "Inicia a tarefa (em andamento + cronômetro). Pausa outra sessão aberta.", async (id) => (await startActivity(id, actorOf(ctx))).presented);
+  act("pause_activity", "Pausar tarefa", "Pausa o cronômetro, mantém em andamento", async (id) => (await pauseActivity(id, actorOf(ctx))).presented, {}, { idempotent: true });
+  act("complete_activity", "Concluir tarefa", "Conclui, sai da fila, gera próxima se recorrente", async (id) => (await completeActivity(id, actorOf(ctx))).presented, {}, { idempotent: true });
+  act("reopen_activity", "Reabrir tarefa", "Reabre para pendente", async (id) => (await reopenActivity(id, actorOf(ctx))).presented, {}, { idempotent: true });
+  act("set_activity_status", "Mudar status", "Muda status por key", async (id, args) => (await setActivityStatus(id, String(args.status), actorOf(ctx))).presented, { status: z.string() }, { idempotent: true });
+  act("delete_activity", "Lixeira", "Lixeira (soft delete). Exige confirm=true.", async (id, args) => (await softDelete(id, actorOf(ctx), args.confirm === true)).presented, { confirm: z.boolean().optional() }, { destructive: true, idempotent: true });
+  act("restore_activity", "Restaurar tarefa", "Tira da lixeira", async (id) => (await restoreActivity(id, actorOf(ctx))).presented, {}, { idempotent: true });
+  act("queue_activity", "Colocar na fila", "Coloca na fila", async (id, args) => queueAdd([id], typeof args.position === "number" ? args.position : undefined, actorOf(ctx)), { position: z.number().optional() }, { idempotent: true });
+  act("unqueue_activity", "Tirar da fila", "Tira da fila", async (id) => queueRemove(id, actorOf(ctx)), {}, { idempotent: true });
+  act("move_in_queue", "Mover na fila", "Move para a posição (1 = topo)", async (id, args) => queueMove(id, Number(args.position || 1), actorOf(ctx)), { position: z.number() }, { idempotent: true });
+  act("reschedule_activity", "Reagendar", "Muda prazo e/ou bloco de tempo", async (id, args) => (await rescheduleActivity(id, {
     dueDate: args.due ? String(args.due) : args.due_date ? String(args.due_date) : undefined,
     scheduledStart: args.scheduled_start ? String(args.scheduled_start) : undefined,
     scheduledEnd: args.scheduled_end ? String(args.scheduled_end) : undefined,
@@ -339,14 +368,15 @@ export function registerActivityTools(
     due_date: z.string().optional(),
     scheduled_start: z.string().optional(),
     scheduled_end: z.string().optional(),
-  });
-  act("add_reminder", "Cria lembrete (aparece no briefing)", async (id, args) => addReminder(id, String(args.remind_at), args.message ? String(args.message) : "", actorOf(ctx)), {
+  }, { idempotent: true });
+  act("add_reminder", "Criar lembrete", "Cria lembrete (aparece no briefing)", async (id, args) => addReminder(id, String(args.remind_at), args.message ? String(args.message) : "", actorOf(ctx)), {
     remind_at: z.string(),
     message: z.string().optional(),
   });
-  act("add_subtask", "Cria subtarefa", async (id, args) => (await addSubtask(id, String(args.title), actorOf(ctx))).presented, { title: z.string() });
+  act("add_subtask", "Criar subtarefa", "Cria subtarefa", async (id, args) => (await addSubtask(id, String(args.title), actorOf(ctx))).presented, { title: z.string() });
 
   server.registerTool("reorder_queue", {
+    ...writeMeta("Reordenar fila", { idempotent: true }),
     description: "Reordena a fila inteira pelos ids",
     inputSchema: z.object({ ordered_ids: z.array(z.string()) }),
   }, async (args) => {
@@ -356,6 +386,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("dismiss_reminder", {
+    ...writeMeta("Dispensar lembrete", { idempotent: true }),
     description: "Dispensa um lembrete",
     inputSchema: z.object({ reminder_id: z.string() }),
   }, async (args) => {
@@ -364,6 +395,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("create_activity_type", {
+    ...writeMeta("Criar tipo"),
     description: "Cria tipo de atividade",
     inputSchema: z.object({ name: z.string(), color: z.string().optional() }),
   }, async (args) => {
@@ -372,6 +404,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("undo_last_action", {
+    ...writeMeta("Desfazer", { destructive: true }),
     description: "Desfaz a última escrita deste usuário (até 30 min)",
     inputSchema: z.object({}),
   }, async () => {
@@ -380,6 +413,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("purge_deleted_activities", {
+    ...writeMeta("Purgar lixeira", { destructive: true, idempotent: true }),
     description: "Apaga de vez tarefas da lixeira (admin). Sem ids, purga toda a lixeira.",
     inputSchema: z.object({ ids: z.array(z.string()).optional() }),
   }, async (args) => {
