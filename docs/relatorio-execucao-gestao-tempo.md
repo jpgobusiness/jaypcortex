@@ -4,7 +4,7 @@
 
 ## Status
 
-G0–G8 feitos. G9 (push/deploy) e G10 (teste em produção + purge) em andamento nesta sessão.
+**G0–G10 concluídos.** Vercel verde em `main` (`80cf900`). Teste MCP em produção: 29 tools de atividade, `get_daily_briefing` respondeu, `[TESTE MCP]` criado/concluído/lixeira; purge via Prisma porque o token estático não tem escopo `admin`.
 
 ## Decisões tomadas sem confirmação
 
@@ -45,4 +45,5 @@ Nenhum de código. Pendente só o clique humano no conector ChatGPT (OAuth + voz
 - G6 — seed `gestao-tempo` (7 camadas, 12 docs, 5 templates, prompt v1). Docs 9 e 12 gerados do código/banco.
 - G7 — redirects ChatGPT na allowlist + `docs/mcp-conexao-chatgpt.md`.
 - G8 — testes unitários (datas, score, slots, OAuth ChatGPT) + `npm run build` limpo.
-- G9/G10 — push `main`, deploy Vercel, teste MCP `[TESTE MCP]` + purge (este relatório atualiza no fim).
+- G9 — push `main` (7 commits) e deploy Vercel verde (`80cf900`).
+- G10 — `tools/list` em produção mostra as tools novas; briefing do dia 2026-11-07; `[TESTE MCP]` criado, concluído, lixeira (sem `confirm` falha; com `confirm` vai). Purge MCP recusou (token sem `admin`); limpeza via Prisma. UI em produção: painel Hoje, fila 12 intacta, modal com campos novos, lixeira vazia, agente Cortex Tempo no escritório. Docs atualizados.

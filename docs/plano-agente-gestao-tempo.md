@@ -250,7 +250,7 @@ Vincular tudo via `AgentKnowledge`, indexar, publicar prompt v1.
 | Capacidade | seg–sex 480 min, sáb/dom 0 |
 
 ## 12. Checklist
-- [x] G0 · [x] G1 · [x] G2 · [x] G3 · [x] G4 · [x] G5 · [x] G6 · [x] G7 · [x] G8 · [ ] G9 · [ ] G10
+- [x] G0 · [x] G1 · [x] G2 · [x] G3 · [x] G4 · [x] G5 · [x] G6 · [x] G7 · [x] G8 · [x] G9 · [x] G10
 
 ## Histórico
 - 7 nov 2026 — plano criado pelo Amazon Quick.
