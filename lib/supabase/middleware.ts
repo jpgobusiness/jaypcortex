@@ -9,6 +9,7 @@ function isPublic(pathname: string) {
   if (pathname.startsWith("/login/")) return true;
   if (pathname.startsWith("/api/auth/login")) return true;
   if (pathname.startsWith("/api/mcp")) return true;
+  if (pathname.startsWith("/.well-known")) return true;
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/icons/") ||

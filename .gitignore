@@ -59,3 +59,5 @@ prisma/*.db
 # token MCP em claro (só o João copia)
 docs/.mcp-token-amazon-quick.local
 docs/.mcp-token-*.local
+docs/.mcp-oauth-amazon-quick.local
+docs/.mcp-oauth-*.local

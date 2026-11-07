@@ -32,7 +32,7 @@ export function registerMcpTools(
   server: ToolServer,
   ctx: { tokenId: string; profileId: string; scopes: string[] }
 ) {
-  const actor = { createdBy: ctx.profileId, source: "mcp" as const };
+  const actor = { createdBy: ctx.profileId || null, source: "mcp" as const };
 
   server.registerTool("list_agents", {
     description: "Lista agentes com slug, papel, status, versão do prompt e nº de docs",
@@ -350,7 +350,7 @@ export function registerMcpTools(
     assertScope(ctx.scopes, "write");
     const id = await resolveAgentId(String(args.agent));
     if (!id) throw new Error("Agente não encontrado");
-    const version = await publishPrompt({ agentId: id, note: args.note ? String(args.note) : undefined, createdBy: ctx.profileId, source: "mcp" });
+    const version = await publishPrompt({ agentId: id, note: args.note ? String(args.note) : undefined, createdBy: ctx.profileId || null, source: "mcp" });
     await writeAudit({ actorId: ctx.profileId, actorType: "mcp", tokenId: ctx.tokenId, action: "publish_prompt", entity: "AgentPromptVersion", entityId: version.id });
     return text(version);
   });
@@ -378,7 +378,7 @@ export function registerMcpTools(
       title: String(args.title),
       content: String(args.markdown),
       kind: args.kind ? String(args.kind) : "contexto",
-      createdBy: ctx.profileId,
+      createdBy: ctx.profileId || null,
       source: "mcp",
     });
     if (saved.file) {
@@ -401,7 +401,7 @@ export function registerMcpTools(
       fileId: String(args.file_id),
       title: args.title ? String(args.title) : undefined,
       content: String(args.markdown),
-      createdBy: ctx.profileId,
+      createdBy: ctx.profileId || null,
       source: "mcp",
     });
     await writeAudit({ actorId: ctx.profileId, actorType: "mcp", tokenId: ctx.tokenId, action: "update_document", entity: "WorkspaceFile", entityId: String(args.file_id) });

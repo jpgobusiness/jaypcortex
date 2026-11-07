@@ -3,27 +3,55 @@
 URL de produção: **`https://jaypcortex.vercel.app/api/mcp`**  
 Alias (clientes que esperam `/mcp` no fim): `https://jaypcortex.vercel.app/api/mcp/mcp`
 
-Auth: header `Authorization: Bearer <token>`. Sem cookie de login. Sem OAuth (pendência explícita; não bloqueia).
+O MCP aceita **dois** modos de Bearer:
 
-## 1. Gerar o token
+1. **OAuth 2.0 client_credentials** (o que o Amazon Quick pede: ID do cliente, segredo, URL do token)
+2. Token estático `jpc_…` (`McpToken`) — Cursor, scripts, fallback
 
-Na UI: **Configurações → Tokens MCP** (só admin). Nome, escopos `read` + `propose` + `write`. O valor em claro aparece **uma vez**.
+Sem token: **401** com `WWW-Authenticate: Bearer`. Sem cookie de login.
 
-Pelo script (já usado para o token `amazon-quick`):
+## 1. Amazon Quick (OAuth serviço a serviço)
+
+Campos do conector MCP no Quick:
+
+| Campo | Valor |
+|---|---|
+| URL MCP | `https://jaypcortex.vercel.app/api/mcp` |
+| ID do cliente | `client_id` em `docs/.mcp-oauth-amazon-quick.local` |
+| Segredo do cliente | `client_secret` no mesmo arquivo |
+| URL do token | `https://jaypcortex.vercel.app/api/mcp/oauth/token` |
+
+Discovery: `https://jaypcortex.vercel.app/.well-known/oauth-authorization-server`  
+(`grant_types_supported`: `client_credentials`; `token_endpoint` aponta para a URL acima.)
+
+O arquivo local (gitignored) é gerado com:
 
 ```bash
-npm run mcp:token
+npm run mcp:oauth-client
 ```
 
-O valor fica só em `docs/.mcp-token-amazon-quick.local` (gitignored). Não commitar.
+Rotacionar o secret (invalida access tokens antigos; o `client_id` permanece):
 
-Rotacionar: `npx tsx scripts/create-mcp-token.ts --rotate`
+```bash
+npx tsx scripts/create-mcp-oauth-client.ts --rotate
+```
 
-## 2. Amazon Quick
+Não commitar o `.local`. O banco guarda só hash do secret e do access token.
 
-Tipo: **MCP**. URL acima. Auth **API key / Bearer**.
+O token endpoint aceita `grant_type=client_credentials` com credenciais em **HTTP Basic** ou no corpo (`application/x-www-form-urlencoded` **ou** JSON). Resposta:
 
-Fluxo esperado:
+```json
+{
+  "access_token": "jpc_at_…",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "read propose write"
+}
+```
+
+O Quick usa esse `access_token` em `Authorization: Bearer` nas chamadas MCP. Expira em 1 hora; o Quick pede outro sozinho.
+
+Fluxo esperado depois de conectar:
 
 1. `list_agents` → achar `migracao-aws`
 2. `search_knowledge` (`query`, `agent=migracao-aws`)
@@ -31,6 +59,20 @@ Fluxo esperado:
 4. `propose_document_change` (mostra o diff; não grava ainda)
 5. Com confirmação: `apply_proposal`
 6. Se for prompt: `publish_prompt`
+
+## 2. Token estático (Cursor / scripts)
+
+Na UI: **Configurações → Tokens MCP** (só admin). Nome, escopos `read` + `propose` + `write`. O valor em claro aparece **uma vez**.
+
+Pelo script (token `amazon-quick`):
+
+```bash
+npm run mcp:token
+```
+
+O valor fica só em `docs/.mcp-token-amazon-quick.local` (gitignored).
+
+Rotacionar: `npx tsx scripts/create-mcp-token.ts --rotate`
 
 ## 3. Cursor / Claude Desktop (stdio)
 
@@ -64,3 +106,4 @@ Rate limit: 60 req/min por token (memória do processo Vercel).
 - Não grava Markdown no banco (converte para TipTap `type: "doc"`).
 - Não abre signup, não apaga `dev.db`, não cria Edge Function.
 - Sem `OPENAI_API_KEY`: busca só FTS (`indexStatus=skipped`).
+- Sem `ask_agent` / chat com LLM no servidor — o Quick veste o agente com `get_agent_prompt` + `search_knowledge`.

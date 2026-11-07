@@ -18,7 +18,13 @@ Checklist §14 completo (E0–E12). Build limpo. Token `amazon-quick` gerado (n�
 | Markdown → TipTap no servidor | `@tiptap/html/server` + `happy-dom` | — |
 | Token bootstrap | `MCP_BOOTSTRAP_TOKEN` opcional; comparação por hash | Não definir a env |
 | Escritório cheio no seed | Se `createAgentWithRoom` falhar, cria agente sem mesa | Apagar o agente `migracao-aws` (não apaga o resto do banco) |
-| OAuth no Quick | Não implementar; documentado como pendência | Caminho: `withMcpAuth` / Supabase Auth |
+| OAuth no Quick | **Feito depois:** `client_credentials` (não authorization_code). Token 3600s, hash no banco. Basic + form + JSON. | Desligar rotas `/api/mcp/oauth` e `/.well-known`; Bearer estático continua |
+| Actor das writes OAuth | Profile admin (`ADMIN_EMAIL`); `tokenId` vazio (não FK em `McpToken`) | — |
+| Prefixo do access token | `jpc_at_` para distinguir do estático `jpc_` | Trocar gerador |
+| Issuer OAuth | `https://jaypcortex.vercel.app` (`MCP_PUBLIC_ORIGIN` opcional) | Env |
+| RFC 9728 extra | Também publiquei `/.well-known/oauth-protected-resource` (Quick/MCP clients costumam pedir) | Apagar a rota |
+| UI de clientes OAuth | Não nesta rodada; só script `npm run mcp:oauth-client` | Tela depois, espelhando Tokens MCP |
+| Secret se o `.local` sumir | Rotaciona o hash e regrava o arquivo (senão o João não conecta) | `--rotate` explícito |
 
 ## Bloqueios
 
@@ -27,7 +33,7 @@ Nenhum bloqueio que tenha impedido o resto. Embeddings semânticos ficam off at�
 ## Pendências do João
 
 - Colar `OPENAI_API_KEY` na Vercel se quiser busca vetorial (sem ela, só FTS).
-- Copiar o token de `docs/.mcp-token-amazon-quick.local` para o Amazon Quick.
+- Colar no Amazon Quick (OAuth serviço a serviço) os três campos de `docs/.mcp-oauth-amazon-quick.local`: `client_id`, `client_secret`, `token_url`. URL MCP = `mcp_url`.
 - Site URL do Auth: `https://jaypcortex.vercel.app` (já era).
 - Opcional: desligar `disable_signup` no painel Auth (já bloqueado por trigger).
 
@@ -37,7 +43,7 @@ Ver `docs/mcp-conexao-quick.md`.
 
 Local já validado:
 
-- `npm test` — 11 unitários ok
+- `npm test` — 19 unitários ok (inclui parse OAuth)
 - `npx tsx scripts/smoke-search.ts` — hits nos docs 5 e 6 de funding
 - `npm run build` — limpo
 
@@ -64,3 +70,4 @@ Produção (`https://jaypcortex.vercel.app`, deploy Ready `jaypcortex-9nr4lcwkl`
 - E10 — testes + build limpo.
 - E11 — commits, push `main`, token amazon-quick, teste MCP produção.
 - E12 — `contexto-plataforma.md`, `mcp-conexao-quick.md`, este relatório.
+- OAuth (7 nov 2026, depois do E12) — tabelas `McpOAuthClient`/`McpOAuthAccessToken` (RLS admin), `POST /api/mcp/oauth/token`, `/.well-known/oauth-authorization-server`, MCP aceita `jpc_…` ou `jpc_at_…`, cliente `amazon-quick` em `docs/.mcp-oauth-amazon-quick.local`.

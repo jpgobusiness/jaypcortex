@@ -2,6 +2,7 @@ import { createMcpHandler } from "mcp-handler";
 import { findValidToken } from "@/lib/mcp/tokens";
 import { rateLimit } from "@/lib/mcp/rate-limit";
 import { registerMcpTools } from "@/lib/mcp/register-tools";
+import { MCP_CORS, mcpPreflight, mcpUnauthorized, withMcpCors } from "@/lib/mcp/http";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -13,20 +14,23 @@ async function handle(req: Request) {
   const header = req.headers.get("authorization") || "";
   const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7).trim() : "";
   if (!token) {
-    return Response.json({ error: "Informe Authorization: Bearer <token>" }, { status: 401 });
+    return mcpUnauthorized("Informe Authorization: Bearer <token>");
   }
   const row = await findValidToken(token);
   if (!row) {
-    return Response.json({ error: "Token inválido ou revogado" }, { status: 401 });
+    return mcpUnauthorized("Token inválido ou revogado");
   }
   if (!rateLimit(row.id)) {
-    return Response.json({ error: "Rate limit (60 req/min)" }, { status: 429 });
+    return new Response(JSON.stringify({ error: "Rate limit (60 req/min)" }), {
+      status: 429,
+      headers: { "Content-Type": "application/json", ...MCP_CORS },
+    });
   }
 
   const mcp = createMcpHandler(
     (server) => {
       registerMcpTools(server as never, {
-        tokenId: row.id === "bootstrap" ? "" : row.id,
+        tokenId: row.kind === "static" ? row.id : "",
         profileId: row.profileId,
         scopes: row.scopes,
       });
@@ -35,22 +39,8 @@ async function handle(req: Request) {
       serverInfo: { name: "jaypcortex", version: "0.1.0" },
     }
   );
-  const res = await mcp(req);
-  const headers = new Headers(res.headers);
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, mcp-session-id, mcp-protocol-version");
-  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+  return withMcpCors(await mcp(req));
 }
 
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Authorization, Content-Type, mcp-session-id, mcp-protocol-version",
-      "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-    },
-  });
-}
-
+export { mcpPreflight as OPTIONS };
 export { handle as GET, handle as POST, handle as DELETE };

@@ -20,7 +20,8 @@
     "seed:migracao-aws": "tsx scripts/seed-agent-migracao.ts",
     "mcp:stdio": "tsx scripts/mcp-stdio.ts",
     "mcp:token": "tsx scripts/create-mcp-token.ts",
-    "test": "node --import tsx --test lib/knowledge/hash.test.ts lib/knowledge/tiptap-text.test.ts lib/knowledge/chunking.test.ts lib/knowledge/markdown.test.ts lib/agents/prompt-composer.test.ts lib/proposals/diff.test.ts"
+    "mcp:oauth-client": "tsx scripts/create-mcp-oauth-client.ts",
+    "test": "node --import tsx --test lib/knowledge/hash.test.ts lib/knowledge/tiptap-text.test.ts lib/knowledge/chunking.test.ts lib/knowledge/markdown.test.ts lib/agents/prompt-composer.test.ts lib/proposals/diff.test.ts lib/mcp/oauth.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

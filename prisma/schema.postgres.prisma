@@ -601,6 +601,32 @@ model McpToken {
   @@index([profileId])
 }
 
+/// Cliente OAuth 2.0 (client_credentials) para MCP — Amazon Quick e similares.
+model McpOAuthClient {
+  id               String                @id @default(cuid())
+  name             String
+  clientId         String                @unique
+  clientSecretHash String
+  scopes           String[]              @default([])
+  revokedAt        DateTime?
+  createdAt        DateTime              @default(now())
+  accessTokens     McpOAuthAccessToken[]
+}
+
+/// Access token OAuth (só o hash no banco). Expira em 3600s.
+model McpOAuthAccessToken {
+  id        String         @id @default(cuid())
+  tokenHash String         @unique
+  clientId  String
+  client    McpOAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  scopes    String[]       @default([])
+  expiresAt DateTime
+  createdAt DateTime       @default(now())
+
+  @@index([clientId])
+  @@index([expiresAt])
+}
+
 model AuditLog {
   id        String    @id @default(cuid())
   actorId   String?

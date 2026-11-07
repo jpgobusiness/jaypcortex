@@ -4,16 +4,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 7 nov 2026 (MCP + Agente MAP em produção)
+Última atualização: 7 nov 2026 (OAuth client_credentials no MCP)
 
 ## Últimas mudanças
 
-- 7 nov 2026 — **MCP + agentes profissionais no ar:** `/api/mcp` (Bearer + escopos), pgvector/FTS híbrida, indexação no save do editor, prompt em camadas versionado, propostas, UI do escritório (abas), Agente de Migração AWS (`migracao-aws`). Sem Edge Functions. Token amazon-quick só em `docs/.mcp-token-amazon-quick.local` (gitignored). Ver `docs/mcp-conexao-quick.md`.
-- 7 nov 2026 — **Plano aprovado (substituído pelo item acima como estado):** MCP na Vercel + base vetorizada + prompt em camadas + propostas + Agente MAP. Plano: `docs/plano-mcp-agentes.md`.
+- 7 nov 2026 — **OAuth 2.0 client_credentials** no MCP para o Amazon Quick: `POST /api/mcp/oauth/token`, discovery `/.well-known/oauth-authorization-server`. O MCP aceita Bearer estático `jpc_…` **ou** access token OAuth (`jpc_at_…`, 1h). Credenciais em `docs/.mcp-oauth-amazon-quick.local` (gitignored). Banco guarda só hash.
+- 7 nov 2026 — **MCP da plataforma (não um MCP por agente)** em `https://jaypcortex.vercel.app/api/mcp`. Quick opera todos os agentes. Sem tool de chat/LLM (`ask_agent` ainda não existe). Ver `docs/mcp-conexao-quick.md`.
+- 7 nov 2026 — Base vetorizada (pgvector + FTS), indexação no save, prompt em camadas, Agente MAP (`migracao-aws`). UI: abas do escritório + Tokens MCP em Configurações.
 - 6 nov 2026 — Prisma na Vercel usa `sslmode=no-verify` (o `sslmode=require` do pooler quebrava TLS).
 - 6 nov 2026 — App Prisma só Postgres no runtime (tipos `prisma-postgres`). Build da Vercel: Node 22.
-- 6 nov 2026 — **Gestão de usuários** em `/usuarios`. Cadastro público bloqueado no banco (allowlist).
-- 6 nov 2026 — **Etapas 2–6:** dados copiados (sem anexos antigos); bucket; profiles + login + RLS.
 
 ---
 
@@ -25,18 +24,20 @@
 | Banco | **Postgres no Supabase** (pooler `aws-1-us-west-2`). Backup SQLite: `dev.db` + `backups/dev-2026-11-06.db` (não apagar). |
 | Flag | `DATABASE_PROVIDER=postgres`. |
 | ORM | Prisma 7 + `pg` Pool. Cliente postgres em `app/generated/prisma-postgres`. TLS do pooler: `sslmode=no-verify`. |
-| Auth | **Login fechado** em `/login` (e-mail + senha, cookie httpOnly). Middleware protege páginas e `/api/*`. Logout no menu. |
+| Auth | **Login fechado** em `/login` (e-mail + senha, cookie httpOnly). Middleware protege páginas e `/api/*`, **exceto** `/api/mcp*`, `/api/mcp/oauth/*` e `/.well-known/*` (sem cookie). Logout no menu. |
 | Signup | **Bloqueado.** Sem tela de cadastro. Trigger em `auth.users` recusa signup público; admin cria via allowlist. A flag `disable_signup` do painel ainda aparece `false` (a API de Auth não deixa a service role alterar). |
 | Admin | `pjoao4446@gmail.com` em `auth.users` + `profiles.role=admin`. Senha **não** está no repo. |
 | Supabase | `gzavuqgoxllbgfyyyrjv` (`us-west-2`). `public` com dados copiados (28 tabelas) + `profiles`. `OvertimeAttachment` = 0 linhas. |
 | Hospedagem | **Vercel** em https://jaypcortex.vercel.app. GitHub `jpgobusiness/jaypcortex`. Node 22. |
 | Edge Functions | Zero (MCP e indexação no Next/Vercel) |
 | Storage | Bucket privado `overtime-attachments` vazio. Anexos **novos** vão para o Storage. |
-| MCP | `https://jaypcortex.vercel.app/api/mcp` (alias `/api/mcp/mcp`). Auth Bearer `McpToken` (hash sha256, escopos `read`/`propose`/`write`). |
+| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp` (alias `/api/mcp/mcp`). Auth: Bearer estático `McpToken` **ou** OAuth `client_credentials` (`McpOAuthClient` + access token 1h). Escopos `read` / `propose` / `write`. O parâmetro `agent` (slug ou id) escolhe em qual agente operar. |
 | Busca | Híbrida RRF (`match_knowledge`): FTS português + pgvector 1536. Sem `OPENAI_API_KEY` → `indexStatus=skipped`, só FTS. |
+| Chat do agente | **Não existe** tool/rota que chame LLM. Quick “veste” o agente com `get_agent_prompt` + `search_knowledge`. Aba Testar só devolve trechos. |
 | Agente MAP | slug `migracao-aws`, 6 camadas de prompt, 12 docs + 5 templates, prompt v1 publicado. |
+| Páginas | `/login`, `/atividades`, `/controle-diario`, `/desafio`, `/horas-extras`, `/automacoes`, `/configuracoes`, `/usuarios`, `/escritorio`, `/espacos`, `/espacos/[id]`, `/espacos/[id]/arquivos/[id]`. |
 
-Conclusão: app no Postgres + login + MCP + Agente MAP, publicado na Vercel.
+Conclusão: app no Postgres + login + **um MCP da plataforma** + Agente MAP, publicado na Vercel.
 
 ---
 
@@ -50,15 +51,15 @@ Tudo é de **um operador** (você). Não há multi-empresa nem “criar conta”
 
 ### Profissional
 - **Atividades** — lista, kanban, **fila de execução** (primeira aba), mapa mental
-- **Horas extras** — mês, lançamentos, anexos (imagem/PDF no banco)
+- **Horas extras** — mês, lançamentos, anexos (imagem/PDF no Storage para os novos)
 - **Automações** — contatos (ex. WhatsApp)
-- **Configurações** — tipos e status de atividade
+- **Configurações** — tipos e status de atividade + **Tokens MCP** (admin: criar/listar/revogar)
 
 ### Conhecimento e agentes
-- **Espaços de trabalho** — espaços → pastas (1 nível) → arquivos (páginas TipTap)
+- **Espaços de trabalho** — espaços → pastas (1 nível) → arquivos (páginas TipTap). Editor com barra de `kind`, tags, índice e histórico de revisões.
 - **Escritório de agentes** — agentes 3D, cada um com “sala” (um Workspace) e pastas padrão: `Prompt`, `Base de conhecimento`, `Templates`, `Entregas`. Painel com abas: Visão, Prompt, Base, Propostas, Histórico, Testar.
 - **Base de conhecimento do agente** — **não copia** o documento; é um vínculo `AgentKnowledge` → `WorkspaceFile`. Continua editável por **Base de conhecimento → Novo arquivo** (editor TipTap).
-- **MCP** — leitura, propostas e escrita via tools; Markdown só na borda MCP; banco permanece TipTap JSON.
+- **MCP (plataforma)** — um endpoint para todos os agentes. Leitura, propostas e escrita via tools; Markdown só na borda MCP; banco permanece TipTap JSON. Não é chat.
 
 ### Comercial (no banco, UI pode estar menos visível no menu atual)
 - Funil: `Stage`, `Opportunity`, `Commercial`
@@ -118,7 +119,7 @@ Trigger `on auth.users insert` → cria `profiles` (assim o seed do admin não e
 - Não ligar “Email signup” no Auth
 - Não usar a publishable key para criar usuário no client
 - Não colocar senha em `profiles.password`
-- Não deixar `/api/*` sem sessão depois do go-live
+- Não deixar `/api/*` sem sessão depois do go-live — **exceção feita 7 nov 2026:** `/api/mcp*` (Bearer estático ou OAuth) e `/.well-known/*`. O resto das APIs continua exigindo sessão.
 
 ---
 
@@ -160,8 +161,24 @@ Trigger `on auth.users insert` → cria `profiles` (assim o seed do admin não e
 - `AgentPromptLayer` / `AgentPromptVersion`
 - `ChangeProposal` / `FileRevision`
 - `McpToken` / `AuditLog`
+- `McpOAuthClient` / `McpOAuthAccessToken` — OAuth `client_credentials` (hash do secret e do access token; RLS só admin)
 
 **Antes (substituído em 7 nov 2026):** “não existem tags, kind, autor, embeddings”. Passaram a existir na migration `20261107120000_mcp_knowledge`.
+
+Nomes no Postgres são os do Prisma (`"WorkspaceFile"`, `"McpToken"`, …), não snake_case.
+
+### Rotas REST novas (UI + serviços; além do MCP)
+
+- `/api/mcp` e `/api/mcp/[transport]` — Streamable HTTP; Bearer estático `jpc_…` **ou** access token OAuth `jpc_at_…`
+- `POST /api/mcp/oauth/token` — OAuth `client_credentials` (Basic ou corpo form/JSON)
+- `GET /.well-known/oauth-authorization-server` e `/.well-known/oauth-protected-resource`
+- `/api/mcp-tokens` (GET/POST, admin) e `/api/mcp-tokens/[id]` (DELETE/revogar)
+- `/api/knowledge/search`, `/api/knowledge/reindex`
+- `/api/agents/[id]/prompt` (GET composto, POST publicar), `/prompt/layers`, `/prompt/versions`
+- `/api/proposals`, `/api/proposals/[id]/apply`, `/api/proposals/[id]/reject`
+- `/api/workspaces/files/[id]/revisions` (GET histórico, POST restaurar)
+
+Rotas de espaços/agentes/arquivos atuais **não foram quebradas**. PATCH do arquivo indexa e grava revisão.
 
 ---
 
@@ -199,7 +216,8 @@ Views são baratas (não contam como Edge Function). Úteis:
 |---|---|
 | `v_pipeline` | oportunidade + estágio + comercial |
 | `v_activity_board` | atividade + tipo + status + oportunidade |
-| `v_knowledge_catalog` | arquivo + espaço + pasta + agentes vinculados + excerpt |
+| `v_knowledge_catalog` | **existe** (migration MCP): arquivo + espaço + pasta + kind + tags + agentes + indexStatus |
+| `v_agent_overview` | **existe:** agente + prompt ativo + nº docs/chunks + propostas pendentes |
 | `v_overtime_month_totals` | soma de horas / valor por mês |
 | `v_profiles_safe` | profiles sem nada sensível, para o client |
 
@@ -225,6 +243,7 @@ Documentos TipTap **continuam no Postgres** (`content` texto JSON). Não são ar
 
 **Feito.** Tabelas de negócio: `authenticated` + `is_active_user()` (SECURITY DEFINER, para não recursar).  
 `profiles`: o próprio lê a si; admin lê/altera os outros via `is_admin()`.  
+`McpToken`, `AuditLog`, `McpOAuthClient` e `McpOAuthAccessToken`: leitura/escrita só `is_admin()`. MCP autentica o token **no servidor** (Prisma/service role bypassa RLS).  
 `anon` sem grant. Service role (servidor) **bypassa RLS**.
 
 ---
@@ -232,7 +251,7 @@ Documentos TipTap **continuam no Postgres** (`content` texto JSON). Não são ar
 ## 8. Edge Functions — economizar o limite (100 no free)
 
 ### Princípio
-O Next.js **já é o monólito de API** (`app/api/**`, ~46 rotas). Subir isso para Vercel (ou similar) **não gasta** cota de Edge Function do Supabase.
+O Next.js **já é o monólito de API** (`app/api/**`, ~63 rotas). Subir isso para Vercel (ou similar) **não gasta** cota de Edge Function do Supabase.
 
 **Dia 1: 0 Edge Functions.** Auth + CRUD no Next, apontando Prisma para o Postgres.
 
@@ -258,8 +277,9 @@ O que **não** vira Edge Function: CRUD de atividade, desafio, horas extras, kan
 
 - `/login`: e-mail + senha, sem cadastro
 - Cookie httpOnly (Supabase SSR)
-- Middleware: tudo exige sessão, exceto `/login`, `/offline`, estáticos, `POST /api/auth/login`
-- `/usuarios`: esqueleto, só `admin`
+- Middleware: tudo exige sessão, exceto `/login`, `/offline`, estáticos, `POST /api/auth/login`, **`/api/mcp*`** (Bearer/OAuth), **`/.well-known/*`**
+- `/usuarios`: gestão, só `admin`
+- `/configuracoes`: tipos/status + Tokens MCP (admin)
 - Logout: botão Sair na sidebar + em `/usuarios`
 
 Painel Auth (`disable_signup`) ainda pode aparecer ligado: a service role **não consegue** mudar essa flag. O trigger + a ausência de tela de cadastro bloqueiam o signup mesmo assim. Desligar no painel é opcional, redundante.
@@ -268,18 +288,24 @@ Painel Auth (`disable_signup`) ainda pode aparecer ligado: a service role **não
 
 ## 10. Base de conhecimento + Quick / MCP
 
-**Feito (7 nov 2026).** Texto antigo (“sem tag, sem kind, sem vetor, sem auth”) está **substituído**.
+**Feito (7 nov 2026).** Texto antigo (“sem tag, sem kind, sem vetor, sem auth, SQLite”) está **substituído**.
+
+Arquitetura: **um MCP = o escritório Nuage/JayP Cortex**. Amazon Quick conecta uma vez e opera **qualquer** agente (Cortex, Ana, MAP, novos). Não há MCP por agente.
 
 - Fonte da verdade: `WorkspaceFile.content` (JSON TipTap). Markdown só na borda MCP / leitura.
 - Base do agente = `AgentKnowledge` (vínculo, não cópia). UI: Base → Novo arquivo → editor.
 - `kind` + `tags[]` + FTS + pgvector; indexação no `PATCH` do arquivo.
-- MCP Streamable HTTP: `https://jaypcortex.vercel.app/api/mcp` (também `/api/mcp/mcp`). Bearer token (hash); escopos `read` / `propose` / `write`.
-- Tools: list/get agents, search_knowledge, read/propose/apply, prompt publish, etc. Ver `docs/mcp-conexao-quick.md`.
+- MCP Streamable HTTP: `https://jaypcortex.vercel.app/api/mcp` (também `/api/mcp/mcp`). Header `Authorization: Bearer <token>` — estático `jpc_…` **ou** access token OAuth. Escopos `read` / `propose` / `write`.
+- Tools de leitura: `list_agents`, `get_agent`, `get_agent_prompt`, `list_workspaces`, `list_documents`, `read_document`, `search_knowledge`, `list_proposals`, `get_proposal`, `get_document_history`.
+- Tools de rascunho: `propose_document_change`, `propose_new_document`, `propose_prompt_change`, `propose_agent_config`.
+- Tools de escrita: `apply_proposal`, `reject_proposal`, `publish_prompt`, `create_document`, `update_document`, `link_knowledge`, `unlink_knowledge`, `create_agent`, `reindex_document`.
 - Prompt em camadas (`kind=prompt` na pasta Prompt) + `AgentPromptVersion` imutável.
 - Propostas: rascunho → aplicar/rejeitar, com diff e `FileRevision`.
 - Agente `migracao-aws` ativo com base MAP.
+- OAuth MCP: **feito** (`client_credentials`, token 1h, discovery RFC 8414). Sem UI de clientes OAuth nesta rodada (script `npm run mcp:oauth-client`).
+- **Não feito:** `ask_agent` / chat que chama LLM no servidor. Quick usa prompt + busca e responde ele mesmo.
 
-OAuth MCP: **não feito** (não bloqueou). Caminho futuro: `withMcpAuth` / Supabase Auth como IdP.
+Conexão: `docs/mcp-conexao-quick.md`. Segredo/token em claro nunca no git.
 
 ---
 
@@ -325,6 +351,7 @@ Variáveis (sem valores aqui):
 | `OPENAI_API_KEY` | opcional; sem ela a busca é só FTS |
 | `MCP_ENABLED` | default `true` |
 | `MCP_BOOTSTRAP_TOKEN` | opcional, só se a UI de tokens falhar |
+| `MCP_PUBLIC_ORIGIN` | opcional; issuer OAuth (default `https://jaypcortex.vercel.app`) |
 
 Não colocar senha. `DATABASE_URL` na Vercel pode ser a mesma do pooler se o Prisma usar `POSTGRES_POOLER_URL`.
 
@@ -343,6 +370,7 @@ No painel Auth do Supabase, Site URL / Redirect URLs devem incluir `https://jayp
 5. ~~**Edge Functions no dia 1:**~~ **Decidido: zero.** Auth e CRUD no Next.
 6. ~~**Onde roda o Next:**~~ **Decidido: Vercel.** Prisma usa o pooler do Supabase.
 7. ~~**Admin:**~~ **Decidido:** e-mail `pjoao4446@gmail.com` (`ADMIN_EMAIL`). Senha só no painel Auth / cofre — nunca em código, seed, commit ou log. Signup público off.
+8. ~~**MCP por agente vs plataforma:**~~ **Decidido 7 nov 2026:** um MCP do escritório; `agent` é parâmetro. Chat/LLM no servidor fica para depois.
 
 ---
 
@@ -357,20 +385,22 @@ Fase 1 em execução, por etapas (parar e esperar “ok” entre elas):
 5. ~~RLS~~ **feito**
 6. ~~Checklist Vercel~~ **feito** — projeto `jaypcortex` no ar, env coladas (sem senha de usuário)
 
-Edge Functions: zero. `kind`/tags: só se o Quick precisar.
+Edge Functions: zero. `kind`/tags, MCP, busca e embeddings: **feitos** (FTS sempre; vetor se houver `OPENAI_API_KEY`).
 
-Depois: gestão de usuários, MCP, busca, embeddings, 3–5 Edge Functions-roteador.
+Depois (ainda não): chat/`ask_agent` no servidor, 3–5 Edge Functions-roteador (só se precisar; hoje o Next cobre). OAuth MCP **feito**.
 
 ---
 
 ## 15. Como o Amazon Quick deve usar este arquivo
 
-- Tratar as tabelas da §3 como **já existentes no produto** (ainda no SQLite)
-- Tratar `profiles` / Auth como **a construir**
-- Não sugerir signup público
-- Não sugerir uma Edge Function por CRUD
-- Não gravar TipTap como Markdown no banco
-- Não assumir pgvector até a Fase 2
-- Preferir a API Next autenticada a escrever no Postgres direto
+> **7 nov 2026 — instruções abaixo substituem** “SQLite / profiles a construir / sem pgvector”.
+
+- Banco **já é Postgres** no Supabase. SQLite (`dev.db`) é só backup — não escrever nele.
+- Auth **já existe** (login fechado). Signup público **não**.
+- MCP **já existe** na Vercel: um endpoint, todos os agentes. URL, OAuth (`client_id` / secret / token URL) e Bearer em `docs/mcp-conexao-quick.md`. Não inventar MCP por agente nem Edge Function por CRUD.
+- Não gravar TipTap como Markdown no banco. Markdown só na borda MCP.
+- pgvector + FTS **já existem**. Sem `OPENAI_API_KEY` a busca é só FTS.
+- Preferir as tools MCP (propor → aplicar) a escrever no Postgres direto.
+- Não assumir que o MCP chama o LLM do agente; para “conversar”, use `get_agent_prompt` + `search_knowledge`.
 
 Se Quick e Cursor divergirem: **este markdown vence** até a gente editar a §13.
