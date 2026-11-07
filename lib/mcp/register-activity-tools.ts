@@ -34,6 +34,7 @@ import {
 import { getDailyBriefing, getWeeklyReview, planDay } from "@/lib/briefing/briefing";
 import { parseDatePhrase } from "@/lib/activities/dates";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
+import { createActivityShape, idOrQueryShape, queuePosition } from "@/lib/mcp/activity-schemas";
 import { readMeta, writeMeta, type ToolServer } from "@/lib/mcp/annotations";
 
 function text(data: unknown) {
@@ -64,10 +65,7 @@ async function target(args: Record<string, unknown>, includeDeleted = false) {
   }
 }
 
-const idOrQuery = {
-  id: z.string().optional(),
-  query: z.string().optional(),
-};
+const idOrQuery = idOrQueryShape;
 
 export function registerActivityTools(
   server: ToolServer,
@@ -242,30 +240,7 @@ export function registerActivityTools(
     return wrap(() => getHistory({ id: args.id ? String(args.id) : undefined, date: args.date ? String(args.date) : undefined }));
   });
 
-  const createShape = z.object({
-    title: z.string(),
-    type: z.string().optional(),
-    type_id: z.string().optional(),
-    status: z.string().optional(),
-    priority: z.string().optional(),
-    due: z.string().optional(),
-    due_date: z.string().optional(),
-    notes: z.string().optional(),
-    description: z.string().optional(),
-    estimated_minutes: z.number().optional(),
-    importance: z.number().optional(),
-    urgency: z.number().optional(),
-    energy: z.string().optional(),
-    context: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    area: z.string().optional(),
-    waiting_on: z.string().optional(),
-    parent_id: z.string().optional(),
-    recurrence: z.string().optional(),
-    client_key: z.string().optional(),
-    add_to_queue: z.union([z.boolean(), z.number()]).optional(),
-    source: z.string().optional(),
-  });
+  const createShape = createActivityShape;
 
   function fromCreate(args: Record<string, unknown>) {
     return {
@@ -288,14 +263,14 @@ export function registerActivityTools(
       parentId: args.parent_id ? String(args.parent_id) : undefined,
       recurrenceRule: args.recurrence ? String(args.recurrence) : undefined,
       clientKey: args.client_key ? String(args.client_key) : undefined,
-      addToQueue: args.add_to_queue as boolean | number | undefined,
+      addToQueue: queuePosition(args.add_to_queue),
       source: args.source ? String(args.source) : undefined,
     };
   }
 
   server.registerTool("create_activity", {
-    ...writeMeta("Criar tarefa", { idempotent: true }),
-    description: "Cria uma tarefa. Datas em PT-BR ('hoje','sexta','dia 15'). client_key evita duplicar ditado. add_to_queue opcional.",
+    ...writeMeta("Criar tarefa"),
+    description: "Cria uma tarefa. Datas em PT-BR ('hoje','sexta','dia 15'). client_key evita duplicar ditado. add_to_queue = posição na fila (1 = topo). Omitir para não entrar na fila.",
     inputSchema: createShape,
   }, async (args) => {
     assertScope(ctx.scopes, "write");
@@ -306,7 +281,7 @@ export function registerActivityTools(
   });
 
   server.registerTool("create_activities_bulk", {
-    ...writeMeta("Criar tarefas em lote", { idempotent: true }),
+    ...writeMeta("Criar tarefas em lote"),
     description: "Cria até 30 tarefas de uma vez (despejo por voz). Cada item igual a create_activity.",
     inputSchema: z.object({ items: z.array(createShape) }),
   }, async (args) => {
