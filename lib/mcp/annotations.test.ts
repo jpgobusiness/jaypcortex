@@ -6,8 +6,10 @@ test("readMeta marca só leitura", () => {
   const meta = readMeta("Listar tarefas");
   assert.equal(meta.title, "Listar tarefas");
   assert.equal(meta.annotations.readOnlyHint, true);
+  assert.equal(meta.annotations.destructiveHint, false);
+  assert.equal(meta.annotations.idempotentHint, true);
   assert.equal(meta.annotations.openWorldHint, false);
-  assert.equal("destructiveHint" in meta.annotations, false);
+  assert.equal("title" in meta.annotations, false);
 });
 
 test("writeMeta destrutiva e idempotente", () => {

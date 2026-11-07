@@ -6,7 +6,9 @@ import { buildAgentContext } from "@/lib/cortex/context";
 import { route } from "@/lib/cortex/router";
 import { asAgentRouting } from "@/lib/cortex/routing-schema";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
+import { busyBlocksJson } from "@/lib/mcp/activity-schemas";
 import { readMeta, type ToolServer } from "@/lib/mcp/annotations";
+import { parseBusyBlocks } from "@/lib/mcp/quick-compat";
 
 function text(data: unknown) {
   return { content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] };
@@ -68,11 +70,7 @@ export function registerCortexTools(
     inputSchema: z.object({
       request: z.string(),
       date: z.string().optional(),
-      busy_blocks: z.array(z.object({
-        start: z.string(),
-        end: z.string(),
-        title: z.string().optional(),
-      })).optional(),
+      busy_blocks: busyBlocksJson,
       agent_hint: z.string().optional(),
       include_knowledge: z.boolean().optional(),
     }),
@@ -83,9 +81,7 @@ export function registerCortexTools(
       const request = String(args.request || "").trim();
       if (!request) return { error: "Informe request" };
       const date = args.date ? parseDatePhrase(String(args.date))?.date : undefined;
-      const busy = Array.isArray(args.busy_blocks)
-        ? args.busy_blocks as { start: string; end: string; title?: string }[]
-        : [];
+      const busy = parseBusyBlocks(args.busy_blocks);
       const hint = args.agent_hint ? String(args.agent_hint) : undefined;
       const routed = await route(request, { agentHint: hint, includeFts: true });
       const slug = routed.agent?.slug || hint || "cortex";
@@ -130,11 +126,7 @@ export function registerCortexTools(
       agent: z.string(),
       request: z.string(),
       date: z.string().optional(),
-      busy_blocks: z.array(z.object({
-        start: z.string(),
-        end: z.string(),
-        title: z.string().optional(),
-      })).optional(),
+      busy_blocks: busyBlocksJson,
     }),
   }, async (args) => {
     assertScope(ctx.scopes, "read");
@@ -144,9 +136,7 @@ export function registerCortexTools(
       if (!id) return { error: "Agente não encontrado" };
       const row = await prisma.agent.findUnique({ where: { id }, select: { slug: true } });
       const date = args.date ? parseDatePhrase(String(args.date))?.date : undefined;
-      const busy = Array.isArray(args.busy_blocks)
-        ? args.busy_blocks as { start: string; end: string; title?: string }[]
-        : [];
+      const busy = parseBusyBlocks(args.busy_blocks);
       return buildAgentContext({
         slug: row?.slug || agent,
         request: String(args.request || ""),

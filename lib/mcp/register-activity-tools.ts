@@ -34,7 +34,8 @@ import {
 import { getDailyBriefing, getWeeklyReview, planDay } from "@/lib/briefing/briefing";
 import { parseDatePhrase } from "@/lib/activities/dates";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
-import { createActivityShape, idOrQueryShape, queuePosition } from "@/lib/mcp/activity-schemas";
+import { busyBlocksJson, createActivityShape, idOrQueryShape, queuePosition } from "@/lib/mcp/activity-schemas";
+import { parseBusyBlocks } from "@/lib/mcp/quick-compat";
 import { readMeta, writeMeta, type ToolServer } from "@/lib/mcp/annotations";
 
 function text(data: unknown) {
@@ -175,13 +176,12 @@ export function registerActivityTools(
     description: "Dados vivos de tarefas (seção Atividades). Cérebro do dia: top 3, atrasadas, vencendo, lembretes, carga vs agenda (busy_blocks) e alertas. Score determinístico.",
     inputSchema: z.object({
       date: z.string().optional(),
-      busy_blocks: z.array(z.object({ start: z.string(), end: z.string(), title: z.string().optional() })).optional(),
+      busy_blocks: busyBlocksJson,
     }),
   }, async (args) => {
     assertScope(ctx.scopes, "read");
     const d = args.date ? parseDatePhrase(String(args.date))?.date : undefined;
-    const busy = Array.isArray(args.busy_blocks) ? args.busy_blocks as { start: string; end: string; title?: string }[] : [];
-    return wrap(() => getDailyBriefing(d, busy));
+    return wrap(() => getDailyBriefing(d, parseBusyBlocks(args.busy_blocks)));
   });
 
   server.registerTool("get_weekly_review", {
@@ -196,13 +196,13 @@ export function registerActivityTools(
 
   const planShape = z.object({
     date: z.string().optional(),
-    busy_blocks: z.array(z.object({ start: z.string(), end: z.string(), title: z.string().optional() })).optional(),
+    busy_blocks: busyBlocksJson,
     strategy: z.string().optional(),
   });
 
   function runPlan(args: Record<string, unknown>, apply: boolean) {
     const d = args.date ? parseDatePhrase(String(args.date))?.date : undefined;
-    const busy = Array.isArray(args.busy_blocks) ? args.busy_blocks as { start: string; end: string }[] : [];
+    const busy = parseBusyBlocks(args.busy_blocks);
     return wrap(() => planDay({
       date: d,
       busyBlocks: busy,

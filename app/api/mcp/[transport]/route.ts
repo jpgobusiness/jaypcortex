@@ -3,6 +3,7 @@ import { findValidToken } from "@/lib/mcp/tokens";
 import { rateLimit } from "@/lib/mcp/rate-limit";
 import { registerMcpTools } from "@/lib/mcp/register-tools";
 import { MCP_CORS, mcpPreflight, mcpUnauthorized, withMcpCors } from "@/lib/mcp/http";
+import { sanitizeMcpHttpResponse } from "@/lib/mcp/quick-compat";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ async function handle(req: Request) {
       serverInfo: { name: "jaypcortex", version: "0.1.0" },
     }
   );
-  return withMcpCors(await mcp(req));
+  return withMcpCors(await sanitizeMcpHttpResponse(await mcp(req)));
 }
 
 export { mcpPreflight as OPTIONS };

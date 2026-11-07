@@ -13,7 +13,12 @@ const closed = { openWorldHint: false as const };
 export function readMeta(title: string) {
   return {
     title,
-    annotations: { title, readOnlyHint: true, ...closed } satisfies ToolAnnotations,
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      ...closed,
+    } satisfies ToolAnnotations,
   };
 }
 
@@ -21,7 +26,6 @@ export function writeMeta(title: string, opts?: { destructive?: boolean; idempot
   return {
     title,
     annotations: {
-      title,
       readOnlyHint: false,
       destructiveHint: Boolean(opts?.destructive),
       idempotentHint: Boolean(opts?.idempotent),

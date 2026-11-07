@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+/** String no JSON Schema (Quick Draft 7). Em runtime ainda aceita array via preprocess. */
+export const busyBlocksJson = z.preprocess(
+  (value) => (Array.isArray(value) ? JSON.stringify(value) : value),
+  z.string().optional()
+);
+
 /** Campos simples: o Action Review do Amazon Quick não renderiza `type: ["boolean","number"]`. */
 export const idOrQueryShape = {
   id: z.string().optional(),
