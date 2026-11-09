@@ -7,6 +7,7 @@ import {
   appendToFile,
   createFileInFolder,
   createOpportunityFolder,
+  resolveOpportunityFolder,
   deleteDocumentSection,
   getDocumentOutline,
   importTranscript,
@@ -76,16 +77,17 @@ export function registerOpportunityTools(
 
   server.registerTool("create_file_in_folder", {
     ...writeMeta("Criar arquivo na pasta"),
-    description: "Cria arquivo na pasta. kind: contexto, proposal_doc, transcricao, nota. Idempotente por título na pasta.",
+    description: "Cria arquivo na pasta do espaço Oportunidades. folder = nome da pasta (ex.: TAMURA). title = nome do arquivo.",
     inputSchema: z.object({
-      folder_id: z.string(),
+      folder: z.string(),
       title: z.string(),
-      kind: z.string(),
     }).passthrough(),
   }, async (args) => wrap(async () => {
     assertScope(ctx.scopes, "write");
+    const folder = await resolveOpportunityFolder(String(args.folder ?? args.folder_id ?? ""));
+    if (!folder) throw new Error("Pasta não encontrada. Informe o nome (ex.: TAMURA).");
     return createFileInFolder({
-      folder_id: String(args.folder_id ?? ""),
+      folder_id: folder.id,
       title: String(args.title ?? ""),
       kind: String(args.kind ?? "nota"),
       markdown: optional(args.markdown),

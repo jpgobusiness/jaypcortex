@@ -11,7 +11,7 @@
 
 ## Últimas mudanças
 
-- 9 nov 2026 — **Quick Action Review em escritas:** `tools/list` marca JSON Schema Draft 7; tools de escrita (pasta/arquivo/seção/tarefa) só com campos string. `create_opportunity_folder` pede só `name` e cria Contexto + Proposal Doc. Depois do deploy: Sync + habilitar tools no JayPCortexChat.
+- 9 nov 2026 — **Quick Action Review em escritas:** `tools/list` marca JSON Schema Draft 7; escritas só string. `create_opportunity_folder` pede só `name`. `create_file_in_folder` pede `folder` (nome) + `title`, sem id. Depois do deploy: Sync + habilitar tools no JayPCortexChat.
 - 9 nov 2026 — **Página da pasta e edição no espaço:** clicar no espaço abre `/espacos/[id]` com nome/descrição editáveis, contagens e listagem. Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, arquivos, funil, entregas). Menu e breadcrumb do arquivo apontam para a pasta.
 - 9 nov 2026 — **Espaços de trabalho:** a lista `/espacos` não mostra mais as salas individuais (Ana, Leo, Bia…). Ficam MAP - MIGRAÇÕES, o cartão **Sala dos agentes** (abre `/escritorio`) e **Oportunidades**. Prompt/base continuam no Escritório.
 - 9 nov 2026 — **Fase C Oportunidades feita:** `delete_section` (MCP+REST, `not_found`/`conflict`, revisão restaurável); importar transcrição (.txt/.md/.vtt/.srt/.docx) + `import_transcript` (parte N se > 5 MB); bucket `opportunity-files` + tabela `FolderAsset`; `register_delivery` + UI Entregas; `get_proposal_template` + `templates/propostas/`. Agente `propostas` republicado. Após deploy: Sync no JayPCortexChat.

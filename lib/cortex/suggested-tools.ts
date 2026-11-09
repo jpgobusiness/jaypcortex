@@ -16,6 +16,17 @@ const WRITE_TOOLS = new Set([
   "import_transcript", "register_delivery",
 ]);
 
+function folderNameGuess(request: string) {
+  const quoted = request.match(/["“]([^"”]+)["”]/);
+  if (quoted?.[1]) return quoted[1].trim();
+  const named = request.match(
+    /\b(?:pasta|cliente|oportunidade)\s+(?:do |da |de )?\s*([A-Za-zÁÉÍÓÚÃÕÂÊÔ0-9][\wÁÉÍÓÚÃÕÂÊÔ-]{1,40})/i
+  );
+  if (named?.[1]) return named[1].trim();
+  const caps = request.match(/\b([A-ZÁÉÍÓÚÃÕ]{3,20})\b/);
+  return caps?.[1];
+}
+
 function titleGuess(request: string) {
   const m =
     request.match(/cria(?:r)?(?: uma)? tarefa(?: de)?\s+(.+)/i)
@@ -83,7 +94,14 @@ export async function buildSuggestedTools(opts: {
     } else if (name === "list_opportunity_folders") {
       why = "Listar pastas do espaço Oportunidades.";
     } else if (name === "create_opportunity_folder") {
+      const name = folderNameGuess(opts.request);
+      args = name ? { name } : {};
       why = "Criar pasta + Contexto + Proposal Doc.";
+      requires_confirmation = true;
+    } else if (name === "create_file_in_folder") {
+      const folder = folderNameGuess(opts.request);
+      args = folder ? { folder, title: "Nota" } : {};
+      why = "Criar arquivo na pasta (informe o nome da pasta, ex.: TAMURA).";
       requires_confirmation = true;
     } else if (name === "upsert_section") {
       why = "Gravar uma seção depois do ok do João. Passe expected_hash.";

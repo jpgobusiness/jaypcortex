@@ -59,6 +59,19 @@ export async function getOpportunitiesWorkspace() {
   return workspace;
 }
 
+/** Aceita id da pasta ou o nome (ex.: TAMURA). */
+export async function resolveOpportunityFolder(idOrName: string) {
+  const key = idOrName.trim();
+  if (!key) return null;
+  const workspace = await getOpportunitiesWorkspace();
+  return prisma.workspaceFolder.findFirst({
+    where: {
+      workspaceId: workspace.id,
+      OR: [{ id: key }, { name: { equals: key, mode: "insensitive" } }],
+    },
+  });
+}
+
 export async function ensureOpportunitiesWorkspace() {
   const existing = await prisma.workspace.findUnique({ where: { key: OPPORTUNITIES_KEY } });
   if (existing) return existing;

@@ -439,11 +439,8 @@ export function registerMcpTools(
     ...writeMeta("Criar documento"),
     description: "Cria arquivo já aplicado (TipTap no banco). Prefira propor quando possível.",
     inputSchema: z.object({
-      agent: z.string(),
       title: z.string(),
-      markdown: z.string(),
-      kind: z.string().optional(),
-      folder: z.string().optional(),
+      agent: z.string(),
     }).passthrough(),
   }, async (args) => {
     assertScope(ctx.scopes, "write");
@@ -457,7 +454,7 @@ export function registerMcpTools(
       workspaceId: agent.workspaceId,
       folderId: folder?.id ?? null,
       title: String(args.title),
-      content: String(args.markdown),
+      content: String(args.markdown ?? ""),
       kind: args.kind ? String(args.kind) : "contexto",
       createdBy: ctx.profileId || null,
       source: "mcp",
