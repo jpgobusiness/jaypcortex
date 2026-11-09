@@ -17,6 +17,7 @@ import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/fetcher";
 import {
   DEFAULT_FILE_TITLE,
   fileHref,
+  folderHref,
   formatDateTime,
   workspaceHref,
 } from "@/lib/workspaces";
@@ -178,7 +179,12 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
           {folder && (
             <>
               <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
-              <span className="truncate">{folder.name}</span>
+              <Link
+                href={folderHref(workspaceId, folder.id)}
+                className="truncate hover:text-[var(--foreground)]"
+              >
+                {folder.name}
+              </Link>
             </>
           )}
           <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
@@ -242,8 +248,9 @@ function FileMetaBar({
 }) {
   const [kind, setKind] = useState(file.kind ?? "contexto");
   const [tags, setTags] = useState((file.tags ?? []).join(", "));
-  const [revisions, setRevisions] = useState<{ id: string; createdAt: string; source: string }[]>([]);
+  const [revisions, setRevisions] = useState<{ id: string; createdAt: string; source: string; note?: string | null }[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const editedByQuick = file.source === "mcp";
 
   async function saveMeta() {
     const saved = await apiPatch<WorkspaceFileSummary>(`/api/workspaces/files/${fileId}`, {
@@ -288,14 +295,28 @@ function FileMetaBar({
       <span className="text-[var(--muted)]">
         {file.indexStatus ?? "pending"} · {file.source ?? "ui"}
       </span>
+      {editedByQuick && (
+        <span
+          className="rounded-full bg-violet-100 px-2 py-0.5 font-semibold text-violet-700"
+          title={`Editado ${new Date(file.updatedAt).toLocaleString("pt-BR")}`}
+        >
+          editado pelo Quick
+        </span>
+      )}
       <button type="button" onClick={() => void loadHistory()} className="font-medium text-[var(--brand-600)]">
         Histórico
       </button>
       {showHistory && (
         <ul className="w-full sm:w-auto">
           {revisions.map((rev) => (
-            <li key={rev.id} className="flex items-center gap-2 py-0.5">
-              <span>{new Date(rev.createdAt).toLocaleString("pt-BR")} · {rev.source}</span>
+            <li
+              key={rev.id}
+              className={`flex items-center gap-2 py-0.5 ${rev.note ? "font-medium text-[var(--foreground)]" : ""}`}
+            >
+              <span>
+                {new Date(rev.createdAt).toLocaleString("pt-BR")} · {rev.source}
+                {rev.note ? ` · ${rev.note}` : ""}
+              </span>
               <button type="button" className="text-[var(--brand-600)]" onClick={() => void restore(rev.id)}>restaurar</button>
             </li>
           ))}

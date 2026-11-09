@@ -13,6 +13,7 @@ import {
   CORTEX_ROUTING,
   GESTAO_TEMPO_ROUTING,
   MIGRACAO_AWS_ROUTING,
+  PROPOSTAS_ROUTING,
   minimalRouting,
 } from "../lib/cortex/default-routing";
 import { asAgentRouting } from "../lib/cortex/routing-schema";
@@ -204,6 +205,7 @@ async function main() {
     let routing = current;
     if (other.slug === "gestao-tempo") routing = GESTAO_TEMPO_ROUTING;
     else if (other.slug === "migracao-aws") routing = MIGRACAO_AWS_ROUTING;
+    else if (other.slug === "propostas") routing = PROPOSTAS_ROUTING;
     else if (!hasIntents && !(current.keywords ?? []).length) {
       routing = minimalRouting(other.role, other.description);
     }

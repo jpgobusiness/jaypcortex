@@ -7,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 7 nov 2026 (MCP: create_activity schema igual create_agent)
+Última atualização: 9 nov 2026 (página da pasta + edição do espaço)
 
 ## Últimas mudanças
 
-- 7 nov 2026 — `create_activity` no Quick: schema só strings e poucos campos (`title`, `priority`, `due`, `notes`, `add_to_queue`, `client_key`), no mesmo formato de `create_agent`. Number/array/~20 campos faziam o Action Review não desenhar o botão. Depois do deploy: Sync no conector.
-- 7 nov 2026 — `tools/list` sanitizado para o Amazon Quick (JSON Schema Draft 7, sem `$schema` 2020-12). `busy_blocks` virou string JSON. Leituras declaram `destructiveHint: false`. Sem isso o Action Review travava sem botão até em “lista/exemplos”. Depois do deploy: Sync no conector.
-- 7 nov 2026 — `list_activities` padrão = pendentes (`status=open`) e devolve `{ activities, total, truncated, counts, note }`. Evita o cliente tratar a página (limit 20) como o universo. `search_activities` e `get_queue` também trazem total.
-- 7 nov 2026 — Tools MCP com `title` PT-BR e annotations (`readOnlyHint`, `destructiveHint`, `idempotentHint`). `plan_day` só lê; `apply_day_plan` grava. Após deploy: Customize → Connectors → JayPCortexChat → permissões. Ver `docs/mcp-conexao-quick.md`.
-- 7 nov 2026 — **Cortex Etapa 1:** tool MCP `cortex` (porta de entrada), roteamento determinístico (`lib/cortex`), `Agent.routing` + `CortexRouteLog`, agente Cortex (`slug cortex`, `isOrchestrator`). Sem LLM no servidor. Ver `docs/plano-cortex-orquestrador.md` e `docs/relatorio-execucao-cortex.md`.
+- 9 nov 2026 — **Página da pasta e edição no espaço:** clicar no espaço abre `/espacos/[id]` com nome/descrição editáveis, contagens e listagem. Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, arquivos, funil, entregas). Menu e breadcrumb do arquivo apontam para a pasta.
+- 9 nov 2026 — **Espaços de trabalho:** a lista `/espacos` não mostra mais as salas individuais (Ana, Leo, Bia…). Ficam MAP - MIGRAÇÕES, o cartão **Sala dos agentes** (abre `/escritorio`) e **Oportunidades**. Prompt/base continuam no Escritório.
+- 9 nov 2026 — **Fase C Oportunidades feita:** `delete_section` (MCP+REST, `not_found`/`conflict`, revisão restaurável); importar transcrição (.txt/.md/.vtt/.srt/.docx) + `import_transcript` (parte N se > 5 MB); bucket `opportunity-files` + tabela `FolderAsset`; `register_delivery` + UI Entregas; `get_proposal_template` + `templates/propostas/`. Agente `propostas` republicado. Após deploy: Sync no JayPCortexChat.
+- 9 nov 2026 — **Fase B Oportunidades feita:** UI “Nova oportunidade” / “Nova transcrição”, badges de `kind`, pasta `_Templates` no toggle, chip do funil, `/comercial` com bloco Documentos, selo “editado pelo Quick” + revisão com nome da seção, tool `link_opportunity_folder`, agente `propostas` no Cortex.
+- 9 nov 2026 — **Fase A Oportunidades feita:** `Workspace.key`, `WorkspaceFolder.opportunityId`, kinds novos, seed + `_Templates`, `lib/tiptap/sections.ts`, 7 tools MCP e REST `/sections`. `expected_hash` → `conflict`.
 
 ---
 
@@ -33,16 +33,18 @@
 | Supabase | `gzavuqgoxllbgfyyyrjv` (`us-west-2`). `public` com dados copiados (28 tabelas) + `profiles`. `OvertimeAttachment` = 0 linhas. |
 | Hospedagem | **Vercel** em https://jaypcortex.vercel.app. GitHub `jpgobusiness/jaypcortex`. Node 22. |
 | Edge Functions | Zero (MCP e indexação no Next/Vercel) |
-| Storage | Bucket privado `overtime-attachments` vazio. Anexos **novos** vão para o Storage. |
-| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Porta de entrada: tool **`cortex`**. Tools com `title` PT-BR + annotations. `tools/list` em JSON Schema Draft 7 (Quick). `plan_day` lê; `apply_day_plan` grava. `list_activities` padrão pendentes + `total`/`truncated`/`counts`. |
-| Cortex | slug `cortex`, `isOrchestrator=true`, id `cortex-orchestrator`. Roteador determinístico (sem LLM). 4 camadas de prompt, docs “Mapa do escritório” e “Como usar o Cortex”. |
+| Storage | Buckets privados `overtime-attachments` (horas extras) e `opportunity-files` (HTML de entrega, anexos, áudio). Binário nunca no Postgres (só `path`). Acesso via API Next + service role; URL assinada curta (5 min). |
+| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Porta de entrada: tool **`cortex`**. Tools com `title` PT-BR + annotations. `tools/list` em JSON Schema Draft 7 (Quick). `plan_day` lê; `apply_day_plan` grava. `list_activities` padrão pendentes + `total`/`truncated`/`counts`. Oportunidades: `list_opportunity_folders`, `create_opportunity_folder`, `create_file_in_folder`, `get_document_outline`, `read_section`, `upsert_section`, `append_to_document`, `delete_section`, `import_transcript`, `register_delivery`, `get_proposal_template`, `link_opportunity_folder`. Agente `propostas`. |
+| Oportunidades | Espaço `key=opportunities`. UI: Nova oportunidade, Nova transcrição, Importar transcrição, Entregas (iframe sandbox), badges de kind, chip do funil, toggle Templates. `/comercial` lista o funil e os documentos da pasta vinculada. Selo “editado pelo Quick”. Agente `propostas`. Templates HTML em `templates/propostas/`. |
+| Cortex | slug `cortex`, `isOrchestrator=true`, id `cortex-orchestrator`. Roteador determinístico (sem LLM). 4 camadas de prompt. Roteia propostas/oportunidade/transcrição → `propostas`. |
 | Agente de atividades | slug `gestao-tempo`, nome **Gestor de Atividades**. 7 camadas de prompt (inclui Comportamental), 12 docs + 5 templates, prompt publicado. `routing` preenchido. |
 | Busca | Híbrida RRF (`match_knowledge`): FTS português + pgvector 1536. Sem `OPENAI_API_KEY` → `indexStatus=skipped`, só FTS. |
 | Chat do agente | **Não existe** tool/rota que chame LLM. O cliente chama `cortex` e veste `agent_prompt`. Aba Testar só devolve trechos. |
 | Agente MAP | slug `migracao-aws`, 6 camadas de prompt, 12 docs + 5 templates, prompt v1 publicado. `routing` preenchido. |
-| Páginas | `/login`, `/atividades`, `/controle-diario`, `/desafio`, `/horas-extras`, `/automacoes`, `/configuracoes`, `/usuarios`, `/escritorio`, `/espacos`, `/espacos/[id]`, `/espacos/[id]/arquivos/[id]`. |
+| Agente Propostas | slug `propostas`, nome **Propostas**, role Arquiteto de propostas. 6 camadas, templates do espaço Oportunidades na base (`AgentKnowledge`), prompt com fluxo de entrega HTML publicado (Fase C). |
+| Páginas | `/login`, `/atividades`, `/controle-diario`, `/desafio`, `/horas-extras`, `/automacoes`, `/configuracoes`, `/usuarios`, `/escritorio`, `/espacos`, `/espacos/[id]`, `/espacos/[id]/pastas/[id]`, `/espacos/[id]/arquivos/[id]`, `/comercial`, `/comercial/[id]`. |
 
-Conclusão: app no Postgres + login + **um MCP da plataforma** (porta `cortex` + conhecimento + atividades) + Cortex orquestrador + Agente MAP + Gestor de Atividades, publicado na Vercel.
+Conclusão: app no Postgres + login + **um MCP da plataforma** (porta `cortex` + conhecimento + atividades + oportunidades) + Cortex + Agente MAP + Gestor de Atividades + Propostas, publicado na Vercel.
 
 ---
 
@@ -61,14 +63,16 @@ Tudo é de **um operador** (você). Não há multi-empresa nem “criar conta”
 - **Configurações** — tipos e status de atividade + **Tokens MCP** (admin: criar/listar/revogar)
 
 ### Conhecimento e agentes
-- **Espaços de trabalho** — espaços → pastas (1 nível) → arquivos (páginas TipTap). Editor com barra de `kind`, tags, índice e histórico de revisões.
+- **Espaços de trabalho** — `/espacos` lista só espaços de conteúdo (hoje **MAP - MIGRAÇÕES** e **Oportunidades**) + cartão **Sala dos agentes** → `/escritorio`. Salas Ana/Leo/Bia/Rafa/Duda/João (e demais agentes) **não** aparecem como espaço. Clicar no espaço abre `/espacos/[id]` (nome/descrição editáveis, contagens, pastas e arquivos). Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, listar arquivos, funil e entregas). Editor TipTap com `kind`, tags, índice, histórico e selo “editado pelo Quick”. Espaço **Oportunidades**: Nova oportunidade, transcrição, Entregas.
+- **Comercial** — `/comercial`: funil (`Opportunity`) e bloco Documentos da pasta vinculada.
 - **Escritório de agentes** — agentes 3D, cada um com “sala” (um Workspace) e pastas padrão: `Prompt`, `Base de conhecimento`, `Templates`, `Entregas`. Painel com abas: Visão, Prompt, Base, Propostas, Histórico, Testar.
 - **Base de conhecimento do agente** — **não copia** o documento; é um vínculo `AgentKnowledge` → `WorkspaceFile`. Continua editável por **Base de conhecimento → Novo arquivo** (editor TipTap).
 - **MCP (plataforma)** — um endpoint para todos os agentes. Leitura, propostas e escrita via tools; Markdown só na borda MCP; banco permanece TipTap JSON. Não é chat.
 
-### Comercial (no banco, UI pode estar menos visível no menu atual)
-- Funil: `Stage`, `Opportunity`, `Commercial`
+### Comercial
+- Funil: `Stage`, `Opportunity`, `Commercial` — UI em `/comercial` (lista + detalhe com Documentos)
 - Metas: `QuarterGoal`
+- Pasta do espaço Oportunidades pode ligar em `Opportunity` (`opportunityId`)
 - Atividade pode ligar em oportunidade
 
 ---
@@ -158,14 +162,15 @@ Trigger `on auth.users insert` → cria `profiles` (assim o seed do admin não e
 - `automation_contacts`
 
 ### Conhecimento
-- `workspaces`
-- `workspace_folders` (um nível; sem pasta-dentro-de-pasta)
-- `workspace_files` — `content` = JSON TipTap (`type: "doc"`), `excerpt` texto curto. **Agora também:** `kind`, `tags[]`, `searchText`, `contentHash`, `indexedAt`, `indexStatus`, `updatedBy`, `source`
+- `workspaces` — **agora também** `key` único opcional (ex. `opportunities`)
+- `workspace_folders` (um nível; sem pasta-dentro-de-pasta) — **agora também** `opportunityId` opcional → `Opportunity`
+- `FolderAsset` — metadados de arquivo no Storage (`kind` entrega\|anexo\|audio, `path`, sem binário)
+- `workspace_files` — `content` = JSON TipTap (`type: "doc"`), `excerpt` texto curto. **Agora também:** `kind`, `tags[]`, `searchText`, `contentHash`, `indexedAt`, `indexStatus`, `updatedBy`, `source`. Kinds extras: `transcricao`, `proposal_doc`, `arquitetura`, `nota`, `entrega`
 - `agents` — **agora também:** `slug`, `model`, `temperature`, `status`, `activePromptVersionId`, `retrievalConfig`, `capabilities`
 - `agent_knowledge` — N:N agente ↔ arquivo
 - `KnowledgeChunk` — chunks + `embedding vector(1536)` + FTS `tsv`
 - `AgentPromptLayer` / `AgentPromptVersion`
-- `ChangeProposal` / `FileRevision`
+- `ChangeProposal` / `FileRevision` (`note` opcional: nome da seção no `upsert_section`)
 - `McpToken` / `AuditLog`
 - `McpOAuthClient` / `McpOAuthAccessToken` / `McpOAuthAuthorizationCode` / `McpOAuthRefreshToken` — OAuth (hash; RLS só admin)
 
@@ -185,6 +190,12 @@ Nomes no Postgres são os do Prisma (`"WorkspaceFile"`, `"McpToken"`, …), não
 - `/api/agents/[id]/prompt` (GET composto, POST publicar), `/prompt/layers`, `/prompt/versions`
 - `/api/proposals`, `/api/proposals/[id]/apply`, `/api/proposals/[id]/reject`
 - `/api/workspaces/files/[id]/revisions` (GET histórico, POST restaurar)
+- `/api/workspaces/files/[id]/sections` (GET outline/read, PUT upsert, POST append, DELETE seção; heading inexistente → 404 `not_found`; `expected_hash` → 409 `conflict`)
+- `/api/workspaces/folders/[id]/transcripts` (POST importar .txt/.md/.vtt/.srt/.docx ou JSON `{text}`)
+- `/api/workspaces/folders/[id]/assets` (GET lista, POST entrega HTML ou multipart)
+- `/api/workspaces/assets/[assetId]` (GET URL assinada 5 min, DELETE)
+- `GET /api/opportunities`, `GET /api/opportunities/[id]`, `POST /api/opportunities/folders` (cria pasta+templates via o mesmo serviço MCP)
+- PATCH `/api/workspaces/folders/[id]` aceita `opportunityId` (vazio desvincula)
 - `/api/activities/briefing`, `/review`, `/trash`
 - `/api/activities/:id/start|pause|complete|reopen|restore|history`
 
@@ -244,6 +255,9 @@ No Supabase, só o que vier **daqui pra frente**:
 - Bucket privado `overtime-attachments` **criado, vazio**
 - Tabela `OvertimeAttachment` com `path`, `name`, `mimeType`, `size` — sem BYTEA
 - Na cópia de dados, pular a tabela de anexos (manter `OvertimeMonth` / `OvertimeEntry`)
+- Bucket privado `opportunity-files` — path `{folderId}/entregas|{anexos}|audio/…`. HTML de proposta, anexo de transcrição, áudio bruto (não processado no servidor).
+- Tabela `FolderAsset` (`path` + metadados). Service role só no servidor Next; UI usa URL assinada (5 min).
+- Script: `npm run db:bucket` cria os dois buckets.
 
 Documentos TipTap **continuam no Postgres** (`content` texto JSON). Não são arquivos no Storage.
 
@@ -302,13 +316,15 @@ Painel Auth (`disable_signup`) ainda pode aparecer ligado: a service role **não
 
 Arquitetura: **um MCP = o escritório Nuage/JayP Cortex**. Amazon Quick conecta uma vez e opera **qualquer** agente (Cortex, Ana, MAP, novos). Não há MCP por agente.
 
-- Fonte da verdade: `WorkspaceFile.content` (JSON TipTap). Markdown só na borda MCP / leitura.
+- Fonte da verdade: `WorkspaceFile.content` (JSON TipTap). Markdown só na borda MCP / leitura. Edição por seção (`lib/tiptap/sections.ts`) fatiar o JSON; **não** reconverter o documento inteiro.
 - Base do agente = `AgentKnowledge` (vínculo, não cópia). UI: Base → Novo arquivo → editor.
 - `kind` + `tags[]` + FTS + pgvector; indexação no `PATCH` do arquivo.
 - MCP Streamable HTTP: `https://jaypcortex.vercel.app/api/mcp` (também `/api/mcp/mcp`). Header `Authorization: Bearer <token>` — estático `jpc_…` **ou** access token OAuth. Escopos `read` / `propose` / `write` / `admin`.
 - **Porta de entrada:** `cortex` (pedido → agente + prompt + conhecimento + dados vivos + `suggested_tools`). Também `get_agent_context` e `list_agent_tools`. Prompt MCP `cortex_start`.
 - `search_knowledge` / `read_document` / `list_documents` = **só base de conhecimento, não contém tarefas**. Tarefas = `list_activities` / `cortex`.
 - Tools de leitura: `list_agents`, `get_agent`, `get_agent_prompt`, `list_workspaces`, `list_documents`, `read_document`, `search_knowledge`, `list_proposals`, `get_proposal`, `get_document_history`.
+- Tools de **oportunidades** (schema só strings): leitura `list_opportunity_folders`, `get_document_outline`, `read_section`, `get_proposal_template`; escrita `create_opportunity_folder`, `create_file_in_folder`, `upsert_section`, `append_to_document`, `delete_section` (`destructiveHint`; heading inexistente → `{error:"not_found"}`), `import_transcript` (`folder_id`, `title?`, `text`; > 5 MB → partes), `register_delivery` (`folder_id`, `name`, `html` → `{asset_id, url_assinada, expires_at}`), `link_opportunity_folder` (`folder_id`, `opportunity_id`; vazio desvincula). Escritas de seção aceitam `expected_hash` e devolvem `{file_id, section_id, content_hash, revision_id, url}` ou `{error:"conflict", content_hash}`. Seed: `npm run seed:opportunities` e `npm run seed:propostas`.
+- Agente `propostas`: `cortex("montar proposta da Tamura")` roteia para ele. Entrega: `read_document` → `get_proposal_template` → gerar HTML → `register_delivery`.
 - Tools de rascunho: `propose_document_change`, `propose_new_document`, `propose_prompt_change`, `propose_agent_config`.
 - Tools de escrita: `apply_proposal`, `reject_proposal`, `publish_prompt`, `create_document`, `update_document`, `link_knowledge`, `unlink_knowledge`, `create_agent`, `reindex_document`.
 - Tools de **atividades** (mesmo `/api/mcp`): `list_activities` (padrão `status=open`; resposta `{ activities, total, truncated, counts, note }`), `get_activity`, `search_activities`, `get_queue` (`queue` + `total`), `list_activity_statuses`, `list_activity_types`, `get_daily_briefing`, `get_weekly_review`, `plan_day` (leitura), `apply_day_plan` (escrita), `get_activity_history`, `create_activity`, `create_activities_bulk`, `update_activity`, `start_activity`, `pause_activity`, `complete_activity`, `reopen_activity`, `set_activity_status`, `delete_activity`, `restore_activity`, `queue_activity`, `unqueue_activity`, `move_in_queue`, `reorder_queue`, `reschedule_activity`, `add_reminder`, `dismiss_reminder`, `add_subtask`, `create_activity_type`, `undo_last_action`, `purge_deleted_activities` (admin).

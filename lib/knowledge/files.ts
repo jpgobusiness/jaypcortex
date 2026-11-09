@@ -33,6 +33,7 @@ export async function saveFileRevision(opts: {
   createdBy?: string | null;
   source: string;
   proposalId?: string | null;
+  note?: string | null;
 }) {
   const hash = contentHash(opts.content, opts.title);
   const last = await prisma.fileRevision.findFirst({
@@ -50,6 +51,7 @@ export async function saveFileRevision(opts: {
       createdBy: opts.createdBy ?? null,
       source: opts.source,
       proposalId: opts.proposalId ?? null,
+      note: opts.note ?? null,
     },
   });
 }
@@ -65,6 +67,7 @@ export async function upsertFileContent(opts: {
   createdBy?: string | null;
   source?: string;
   proposalId?: string | null;
+  note?: string | null;
 }) {
   const source = opts.source ?? "ui";
   let doc: EditorDocument;
@@ -122,6 +125,7 @@ export async function upsertFileContent(opts: {
     createdBy: opts.createdBy,
     source,
     proposalId: opts.proposalId,
+    note: opts.note,
   });
   const index = await indexFile(fileId);
   const file = await prisma.workspaceFile.findUnique({

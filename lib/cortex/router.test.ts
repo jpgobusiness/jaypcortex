@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { normalize } from "./normalize";
 import { routeFromAgents } from "./router";
-import { CORTEX_ROUTING, GESTAO_TEMPO_ROUTING, MIGRACAO_AWS_ROUTING } from "./default-routing";
+import { CORTEX_ROUTING, GESTAO_TEMPO_ROUTING, MIGRACAO_AWS_ROUTING, PROPOSTAS_ROUTING } from "./default-routing";
 import type { RouteAgent } from "./types";
 
 const agents: RouteAgent[] = [
   { slug: "cortex", name: "Cortex", isOrchestrator: true, status: "active", routing: CORTEX_ROUTING },
   { slug: "gestao-tempo", name: "Gestor de Atividades", status: "active", routing: GESTAO_TEMPO_ROUTING },
   { slug: "migracao-aws", name: "Agente de Migração AWS", status: "active", routing: MIGRACAO_AWS_ROUTING },
+  { slug: "propostas", name: "Propostas", status: "active", routing: PROPOSTAS_ROUTING },
   {
     slug: "financeiro",
     name: "Financeiro",
@@ -53,6 +54,7 @@ const cases: { q: string; slug: string; mode: string; intent?: string }[] = [
   { q: "o que é um assess?", slug: "migracao-aws", mode: "conhecimento", intent: "assess" },
   { q: "template de proposta de migração", slug: "migracao-aws", mode: "conhecimento", intent: "proposta_map" },
   { q: "explica o MAP", slug: "migracao-aws", mode: "conhecimento", intent: "visao_map" },
+  { q: "montar proposta da Tamura", slug: "propostas", mode: "acao", intent: "montar_proposta" },
   { q: "quanto tempo um assess toma da minha semana?", slug: "gestao-tempo", mode: "misto" },
 ];
 

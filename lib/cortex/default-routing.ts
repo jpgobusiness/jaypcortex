@@ -192,7 +192,7 @@ export const GESTAO_TEMPO_ROUTING: AgentRouting = {
 export const MIGRACAO_AWS_ROUTING: AgentRouting = {
   domains: ["map", "aws", "migracao", "assess", "funding", "nuvem"],
   keywords: [
-    "map", "aws", "assess", "funding", "7r", "mobilize", "migrate", "proposta",
+    "map", "aws", "assess", "funding", "7r", "mobilize", "migrate",
     "tco", "onda", "workload", "landing zone",
   ],
   knowledge_kinds: ["metodologia", "processo", "template", "caso", "referencia"],
@@ -248,6 +248,66 @@ export const MIGRACAO_AWS_ROUTING: AgentRouting = {
       mode: "conhecimento",
       tools: ["search_knowledge", "get_agent_prompt"],
       examples: ["explica o map", "o que e map", "migracao aws"],
+    },
+  ],
+};
+
+export const PROPOSTAS_TOOLS = [
+  "list_opportunity_folders",
+  "create_opportunity_folder",
+  "create_file_in_folder",
+  "get_document_outline",
+  "read_section",
+  "upsert_section",
+  "append_to_document",
+  "delete_section",
+  "read_document",
+  "search_knowledge",
+  "link_opportunity_folder",
+  "import_transcript",
+  "register_delivery",
+  "get_proposal_template",
+] as const;
+
+export const PROPOSTAS_ROUTING: AgentRouting = {
+  domains: ["proposta", "oportunidade", "proposal", "transcricao", "escopo", "mpe"],
+  keywords: [
+    "proposta", "proposal", "oportunidade", "transcricao", "transcrição",
+    "proposal doc", "mpe", "escopo", "arquitetura da proposta", "coautoria",
+  ],
+  knowledge_kinds: ["template", "contexto", "proposal_doc", "transcricao", "referencia"],
+  allowed_tools: [...PROPOSTAS_TOOLS],
+  default_mode: "acao",
+  intents: [
+    {
+      key: "montar_proposta",
+      mode: "acao",
+      tools: [...PROPOSTAS_TOOLS],
+      examples: [
+        "montar proposta da tamura",
+        "montar proposta",
+        "escrever o proposal doc",
+        "grava a secao escopo",
+        "oportunidade tamura",
+        "ler a transcricao da reuniao",
+        "criar oportunidade",
+        "proposal doc da oportunidade",
+        "arquitetura da proposta",
+        "atualizar o contexto da oportunidade",
+        "gerar entrega html",
+        "importar transcrição",
+        "apagar seção fora de escopo",
+      ],
+    },
+    {
+      key: "listar_oportunidades",
+      mode: "acao",
+      tools: ["list_opportunity_folders", "read_document"],
+      examples: [
+        "lista as oportunidades",
+        "quais pastas de oportunidade",
+        "mostra as propostas em andamento",
+      ],
     },
   ],
 };

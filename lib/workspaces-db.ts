@@ -14,6 +14,7 @@ export const fileSummarySelect = {
   indexStatus: true,
   indexedAt: true,
   source: true,
+  updatedBy: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.WorkspaceFileSelect;
@@ -27,6 +28,15 @@ export function findWorkspaceTrees(where?: Prisma.WorkspaceWhereInput) {
       folders: {
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
         include: {
+          opportunity: {
+            select: {
+              id: true,
+              name: true,
+              client: true,
+              value: true,
+              stage: { select: { id: true, name: true, color: true } },
+            },
+          },
           files: {
             select: fileSummarySelect,
             orderBy: [{ order: "asc" }, { createdAt: "asc" }],

@@ -28,6 +28,11 @@ export async function apiPost<T>(url: string, body: unknown): Promise<T> {
   return handle<T>(res);
 }
 
+export async function apiPostForm<T>(url: string, form: FormData): Promise<T> {
+  const res = await fetch(url, { method: "POST", body: form });
+  return handle<T>(res);
+}
+
 export async function apiPatch<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "PATCH",

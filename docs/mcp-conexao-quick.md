@@ -95,11 +95,11 @@ Fluxo:
 
 O conector do Quick **guarda a lista de tools no momento em que foi criado**. Deploy na Vercel **não** atualiza nem habilita tools novas sozinho.
 
-Depois de um deploy que adiciona tools (`cortex`, `apply_day_plan`, atividades, etc.):
+Depois de um deploy que adiciona tools (`cortex`, `apply_day_plan`, atividades, oportunidades, etc.):
 
 1. **Customize → Connectors → JayPCortexChat → permissões.** Habilite as tools novas (e as que o Quick tenha desligado).
 2. Se a lista estiver velha (~23 de conhecimento, sem `cortex` / `list_activities`): atualize/recarregue as tools ou recrie o conector com a mesma URL `https://jaypcortex.vercel.app/api/mcp` e o mesmo OAuth.
-3. Confira `cortex`, `list_activities`, `get_daily_briefing`, `apply_day_plan`.
+3. Confira `cortex`, `list_activities`, `get_daily_briefing`, `apply_day_plan` e as tools de oportunidades (`list_opportunity_folders`, `create_opportunity_folder`, `upsert_section`, …).
 4. Teste: “lista minhas atividades” deve chamar `cortex` (ou `list_activities`), **nunca** `search_knowledge`.
 
 Sem este passo, o Quick continua caindo na base de conhecimento e ignorando as tools novas.
@@ -114,9 +114,9 @@ O Quick pede **Action Review** em escritas. `create_agent` desenha “Permitir q
 
 | Escopo | Tools |
 |---|---|
-| `read` | `cortex`, `get_agent_context`, `list_agent_tools`; list/get agents, documents, search, proposals, history; **atividades** (list/get/search/queue/statuses/types); `get_daily_briefing`, `get_weekly_review`, `plan_day`, `get_activity_history` |
+| `read` | `cortex`, `get_agent_context`, `list_agent_tools`; list/get agents, documents, search, proposals, history; **atividades** (list/get/search/queue/statuses/types); `get_daily_briefing`, `get_weekly_review`, `plan_day`, `get_activity_history`; **oportunidades** `list_opportunity_folders`, `get_document_outline`, `read_section` |
 | `propose` | propose_* |
-| `write` | apply/reject, create/update document, publish_prompt, link/unlink, create_agent, reindex; **atividades** (criar/editar/iniciar/pausar/concluir/fila/lembretes/undo); `apply_day_plan` (e `plan_day` com `apply=true`, compat) |
+| `write` | apply/reject, create/update document, publish_prompt, link/unlink, create_agent, reindex; **atividades** (criar/editar/iniciar/pausar/concluir/fila/lembretes/undo); `apply_day_plan` (e `plan_day` com `apply=true`, compat); **oportunidades** `create_opportunity_folder`, `create_file_in_folder`, `upsert_section`, `append_to_document`, `link_opportunity_folder` |
 | `admin` | todos, inclusive `purge_deleted_activities` |
 
 Rate limit: 60 req/min por token.

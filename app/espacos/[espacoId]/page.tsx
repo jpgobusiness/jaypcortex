@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -15,18 +15,34 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/form";
+import FolderDeliveries from "@/components/workspaces/FolderDeliveries";
+import {
+  HeaderSubtitleInput,
+  HeaderTitleInput,
+} from "@/components/workspaces/IdentityInputs";
+import KindBadge from "@/components/workspaces/KindBadge";
 import NameModal from "@/components/workspaces/NameModal";
+import OpportunityChip from "@/components/workspaces/OpportunityChip";
+import OpportunityFolderModal from "@/components/workspaces/OpportunityFolderModal";
+import WorkspaceCrumbs from "@/components/workspaces/WorkspaceCrumbs";
+import WorkspaceFileList, {
+  IconButton,
+} from "@/components/workspaces/WorkspaceFileList";
 import WorkspaceFormModal from "@/components/workspaces/WorkspaceFormModal";
+import WorkspaceStatCard from "@/components/workspaces/WorkspaceStatCard";
 import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
-import { apiDelete, apiPatch, apiPost } from "@/lib/fetcher";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPostForm } from "@/lib/fetcher";
+import { transcriptTitle } from "@/lib/opportunities/format";
+import { OPPORTUNITIES_KEY, TEMPLATES_FOLDER } from "@/lib/opportunities/constants";
 import {
   countLabel,
   fileHref,
+  folderHref,
   formatDateTime,
   lastWorkspaceUpdate,
   workspaceFiles,
 } from "@/lib/workspaces";
-import type { WorkspaceFileSummary, WorkspaceFolder } from "@/lib/types";
+import type { FunnelOpportunityChip, WorkspaceFileSummary, WorkspaceFolder } from "@/lib/types";
 
 type FolderModal = { mode: "create" } | { mode: "rename"; folder: WorkspaceFolder };
 
@@ -42,6 +58,9 @@ export default function EspacoDashboardPage() {
   const [folderModal, setFolderModal] = useState<FolderModal | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [creatingFile, setCreatingFile] = useState(false);
+  const [opportunityOpen, setOpportunityOpen] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [funnel, setFunnel] = useState<FunnelOpportunityChip[]>([]);
 
   // Atualiza o dashboard sempre que o espaço abre (prévias e datas dos arquivos).
   useEffect(() => {
@@ -50,6 +69,15 @@ export default function EspacoDashboardPage() {
 
   const closeFolderModal = useCallback(() => setFolderModal(null), []);
   const closeEdit = useCallback(() => setEditOpen(false), []);
+  const closeOpportunity = useCallback(() => setOpportunityOpen(false), []);
+  const isOpportunities = workspace?.key === OPPORTUNITIES_KEY;
+
+  useEffect(() => {
+    if (!isOpportunities) return;
+    apiGet<FunnelOpportunityChip[]>("/api/opportunities")
+      .then(setFunnel)
+      .catch(() => setFunnel([]));
+  }, [isOpportunities, espacoId]);
 
   const files = useMemo(
     () => (workspace ? workspaceFiles(workspace) : []),
@@ -82,7 +110,12 @@ export default function EspacoDashboardPage() {
   }
 
   const current = workspace;
+  const visibleFolders = current.folders.filter(
+    (folder) => showTemplates || folder.name !== TEMPLATES_FOLDER
+  );
+  const templateFolder = current.folders.find((folder) => folder.name === TEMPLATES_FOLDER);
   const recent = [...files]
+    .filter((file) => showTemplates || folderNames.get(file.folderId ?? "") !== TEMPLATES_FOLDER)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
     .slice(0, RECENT_LIMIT);
   const term = query.trim().toLowerCase();
@@ -93,7 +126,7 @@ export default function EspacoDashboardPage() {
           file.excerpt.toLowerCase().includes(term)
       )
     : [];
-  const empty = current.folders.length === 0 && current.files.length === 0;
+  const empty = visibleFolders.length === 0 && current.files.length === 0 && !templateFolder;
 
   async function createFile(folderId: string | null) {
     if (creatingFile) return;
@@ -109,6 +142,61 @@ export default function EspacoDashboardPage() {
       alert(cause instanceof Error ? cause.message : "Erro ao criar o arquivo");
       setCreatingFile(false);
     }
+  }
+
+  async function createOpportunityFolder(name: string, opportunityId?: string) {
+    await apiPost("/api/opportunities/folders", {
+      name,
+      opportunity_id: opportunityId,
+    });
+    await reload();
+  }
+
+  async function importTranscriptFile(folderId: string, file: File) {
+    if (creatingFile) return;
+    setCreatingFile(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const result = await apiPostForm<{
+        files: { file_id: string }[];
+        parts: number;
+        split?: boolean;
+        warning?: string;
+      }>(`/api/workspaces/folders/${folderId}/transcripts`, form);
+      await reload();
+      if (result.warning) alert(result.warning);
+      else if (result.split && result.parts > 1) {
+        alert(`Transcrição dividida em ${result.parts} partes (acima de 5 MB).`);
+      }
+    } catch (cause) {
+      alert(cause instanceof Error ? cause.message : "Erro ao importar a transcrição");
+    } finally {
+      setCreatingFile(false);
+    }
+  }
+
+  async function createTranscript(folderId: string) {
+    if (creatingFile) return;
+    setCreatingFile(true);
+    try {
+      const file = await apiPost<WorkspaceFileSummary>("/api/workspaces/files", {
+        workspaceId: current.id,
+        folderId,
+        title: transcriptTitle(),
+        kind: "transcricao",
+      });
+      await reload();
+      router.push(fileHref(current.id, file.id));
+    } catch (cause) {
+      alert(cause instanceof Error ? cause.message : "Erro ao criar a transcrição");
+      setCreatingFile(false);
+    }
+  }
+
+  async function linkFolder(folderId: string, opportunityId: string) {
+    await apiPatch(`/api/workspaces/folders/${folderId}`, { opportunityId });
+    await reload();
   }
 
   async function saveFolder(name: string) {
@@ -149,6 +237,16 @@ export default function EspacoDashboardPage() {
     }
   }
 
+  async function saveWorkspaceName(name: string) {
+    await apiPatch(`/api/workspaces/${current.id}`, { name });
+    await reload();
+  }
+
+  async function saveWorkspaceDescription(description: string) {
+    await apiPatch(`/api/workspaces/${current.id}`, { description });
+    await reload();
+  }
+
   async function deleteWorkspace() {
     const ok = confirm(
       `Excluir o espaço "${current.name}"? ${countLabel(
@@ -170,14 +268,33 @@ export default function EspacoDashboardPage() {
   return (
     <div>
       <PageHeader
-        title={current.name}
-        subtitle={current.description ?? "Dashboard do espaço"}
+        crumbs={<WorkspaceCrumbs />}
+        title={
+          <HeaderTitleInput
+            value={current.name}
+            onSave={saveWorkspaceName}
+            placeholder="Nome do espaço"
+            ariaLabel="Nome do espaço"
+          />
+        }
+        subtitle={
+          <HeaderSubtitleInput
+            value={current.description ?? ""}
+            onSave={saveWorkspaceDescription}
+            placeholder="Descrição do espaço (opcional)"
+          />
+        }
         actions={
           <>
+            {isOpportunities && (
+              <Button onClick={() => setOpportunityOpen(true)}>
+                <FolderPlus className="h-4 w-4" /> Nova oportunidade
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setFolderModal({ mode: "create" })}>
               <FolderPlus className="h-4 w-4" /> Nova pasta
             </Button>
-            <Button onClick={() => createFile(null)} disabled={creatingFile}>
+            <Button onClick={() => createFile(null)} disabled={creatingFile} variant={isOpportunities ? "outline" : "primary"}>
               <FilePlus className="h-4 w-4" /> Novo arquivo
             </Button>
             <IconButton title="Editar espaço" onClick={() => setEditOpen(true)}>
@@ -198,19 +315,19 @@ export default function EspacoDashboardPage() {
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <StatCard
+          <WorkspaceStatCard
             icon={<Folder className="h-4 w-4" />}
             label="Pastas"
-            value={String(current.folders.length)}
+            value={String(visibleFolders.length)}
             color={current.color}
           />
-          <StatCard
+          <WorkspaceStatCard
             icon={<FileText className="h-4 w-4" />}
             label="Arquivos"
             value={String(files.length)}
             color={current.color}
           />
-          <StatCard
+          <WorkspaceStatCard
             icon={<Clock className="h-4 w-4" />}
             label="Última edição"
             value={formatDateTime(lastWorkspaceUpdate(current))}
@@ -228,6 +345,11 @@ export default function EspacoDashboardPage() {
               conteúdo.
             </p>
             <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
+              {isOpportunities && (
+                <Button onClick={() => setOpportunityOpen(true)}>
+                  <FolderPlus className="h-4 w-4" /> Nova oportunidade
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setFolderModal({ mode: "create" })}>
                 <FolderPlus className="h-4 w-4" /> Nova pasta
               </Button>
@@ -255,7 +377,7 @@ export default function EspacoDashboardPage() {
                     Nenhum arquivo encontrado.
                   </p>
                 ) : (
-                  <FileList
+                  <WorkspaceFileList
                     files={results}
                     folderNames={folderNames}
                     onDelete={deleteFile}
@@ -278,8 +400,11 @@ export default function EspacoDashboardPage() {
                               ? folderNames.get(file.folderId)
                               : "Sem pasta"}
                           </span>
-                          <span className="mt-1 truncate text-sm font-semibold text-[var(--foreground)]">
-                            {file.title}
+                          <span className="mt-1 flex items-center gap-1.5">
+                            <KindBadge kind={file.kind} />
+                            <span className="truncate text-sm font-semibold text-[var(--foreground)]">
+                              {file.title}
+                            </span>
                           </span>
                           <span className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-[var(--muted)]">
                             {file.excerpt || "Sem conteúdo ainda"}
@@ -293,16 +418,32 @@ export default function EspacoDashboardPage() {
                   </Section>
                 )}
 
-                {current.folders.length > 0 && (
-                  <Section title="Pastas">
+                {isOpportunities && templateFolder && (
+                  <label className="flex items-center gap-2 text-xs text-[var(--muted)]">
+                    <input
+                      type="checkbox"
+                      checked={showTemplates}
+                      onChange={(event) => setShowTemplates(event.target.checked)}
+                    />
+                    Templates
+                  </label>
+                )}
+
+                {visibleFolders.length > 0 && (
+                  <Section title={isOpportunities ? "Oportunidades" : "Pastas"}>
                     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                      {current.folders.map((folder) => (
+                      {visibleFolders.map((folder) => (
                         <FolderCard
                           key={folder.id}
                           folder={folder}
                           color={current.color}
                           disabled={creatingFile}
+                          isOpportunities={isOpportunities && folder.name !== TEMPLATES_FOLDER}
+                          funnel={funnel}
                           onCreateFile={() => createFile(folder.id)}
+                          onTranscript={() => createTranscript(folder.id)}
+                          onImportTranscript={(file) => importTranscriptFile(folder.id, file)}
+                          onLink={(opportunityId) => linkFolder(folder.id, opportunityId)}
                           onRename={() => setFolderModal({ mode: "rename", folder })}
                           onDelete={() => deleteFolder(folder)}
                         />
@@ -313,7 +454,7 @@ export default function EspacoDashboardPage() {
 
                 {current.files.length > 0 && (
                   <Section title="Arquivos sem pasta">
-                    <FileList files={current.files} onDelete={deleteFile} />
+                    <WorkspaceFileList files={current.files} onDelete={deleteFile} />
                   </Section>
                 )}
               </>
@@ -338,6 +479,11 @@ export default function EspacoDashboardPage() {
         workspace={current}
         onSaved={reload}
       />
+      <OpportunityFolderModal
+        open={opportunityOpen}
+        onClose={closeOpportunity}
+        onSubmit={createOpportunityFolder}
+      />
     </div>
   );
 }
@@ -351,81 +497,120 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  color: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
-      <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
-        <span
-          className="flex h-7 w-7 items-center justify-center rounded-lg"
-          style={{ backgroundColor: `${color}1a`, color }}
-        >
-          {icon}
-        </span>
-        {label}
-      </div>
-      <p className="mt-2 truncate text-2xl font-bold text-[var(--foreground)]">
-        {value}
-      </p>
-    </div>
-  );
-}
-
 function FolderCard({
   folder,
   color,
   disabled,
+  isOpportunities,
+  funnel,
   onCreateFile,
+  onTranscript,
+  onImportTranscript,
+  onLink,
   onRename,
   onDelete,
 }: {
   folder: WorkspaceFolder;
   color: string;
   disabled: boolean;
+  isOpportunities?: boolean;
+  funnel?: FunnelOpportunityChip[];
   onCreateFile: () => void;
+  onTranscript?: () => void;
+  onImportTranscript?: (file: File) => void;
+  onLink?: (opportunityId: string) => void;
   onRename: () => void;
   onDelete: () => void;
 }) {
+  const importRef = useRef<HTMLInputElement>(null);
   return (
-    <section className="flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+    <section className="relative flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
       <header className="flex items-center gap-2 border-b border-[var(--border)] py-2 pl-4 pr-2">
         <Folder className="h-4 w-4 shrink-0" style={{ color }} />
-        <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--foreground)]">
+        <Link
+          href={folderHref(folder.workspaceId, folder.id)}
+          className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--foreground)] after:absolute after:inset-0 after:rounded-2xl hover:underline"
+        >
           {folder.name}
-        </h3>
-        <span className="shrink-0 text-xs text-[var(--muted)]">
+        </Link>
+        <span className="relative z-10 shrink-0 text-xs text-[var(--muted)]">
           {folder.files.length}
         </span>
-        <IconButton title="Novo arquivo nesta pasta" onClick={onCreateFile} disabled={disabled}>
-          <FilePlus className="h-4 w-4" />
-        </IconButton>
-        <IconButton title="Renomear pasta" onClick={onRename}>
-          <Pencil className="h-4 w-4" />
-        </IconButton>
-        <IconButton title="Excluir pasta" danger onClick={onDelete}>
-          <Trash2 className="h-4 w-4" />
-        </IconButton>
+        <div className="relative z-10 flex items-center gap-1">
+          {isOpportunities && onTranscript && (
+            <Button
+              variant="outline"
+              className="h-8 min-h-0 px-2 py-1 text-xs"
+              onClick={onTranscript}
+              disabled={disabled}
+            >
+              Nova transcrição
+            </Button>
+          )}
+          {isOpportunities && onImportTranscript && (
+            <>
+              <input
+                ref={importRef}
+                type="file"
+                accept=".txt,.md,.vtt,.srt,.docx,text/plain,text/markdown,text/vtt"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) onImportTranscript(file);
+                }}
+              />
+              <Button
+                variant="outline"
+                className="h-8 min-h-0 px-2 py-1 text-xs"
+                onClick={() => importRef.current?.click()}
+                disabled={disabled}
+              >
+                Importar transcrição
+              </Button>
+            </>
+          )}
+          <IconButton title="Novo arquivo nesta pasta" onClick={onCreateFile} disabled={disabled}>
+            <FilePlus className="h-4 w-4" />
+          </IconButton>
+          <IconButton title="Renomear pasta" onClick={onRename}>
+            <Pencil className="h-4 w-4" />
+          </IconButton>
+          <IconButton title="Excluir pasta" danger onClick={onDelete}>
+            <Trash2 className="h-4 w-4" />
+          </IconButton>
+        </div>
       </header>
+      {isOpportunities && (
+        <div className="relative z-10 flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-4 py-2">
+          {folder.opportunity ? (
+            <OpportunityChip opportunity={folder.opportunity} />
+          ) : (
+            <span className="text-[11px] text-[var(--muted)]">Sem vínculo no funil</span>
+          )}
+          {onLink && funnel && (
+            <select
+              value={folder.opportunityId ?? ""}
+              onChange={(event) => onLink(event.target.value)}
+              aria-label="Vincular ao funil"
+              className="h-7 max-w-48 rounded-md border border-[var(--border)] bg-white px-1 text-[11px]"
+            >
+              <option value="">Desvincular</option>
+              {funnel.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.client || row.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
       {folder.files.length === 0 ? (
-        <button
-          type="button"
-          onClick={onCreateFile}
-          disabled={disabled}
-          className="px-4 py-6 text-center text-xs text-[var(--muted)] hover:text-[var(--foreground)]"
-        >
-          Pasta vazia. Clique para criar um arquivo.
-        </button>
+        <p className="px-4 py-6 text-center text-xs text-[var(--muted)]">
+          Pasta vazia. Clique para abrir.
+        </p>
       ) : (
-        <ul className="max-h-72 divide-y divide-[var(--border)] overflow-y-auto">
+        <ul className="relative z-10 max-h-72 divide-y divide-[var(--border)] overflow-y-auto">
           {folder.files.map((file) => (
             <li key={file.id}>
               <Link
@@ -433,6 +618,7 @@ function FolderCard({
                 className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--foreground)] hover:bg-black/[0.02]"
               >
                 <FileText className="h-4 w-4 shrink-0 text-[var(--muted)]" />
+                <KindBadge kind={file.kind} />
                 <span className="min-w-0 flex-1 truncate">{file.title}</span>
                 <span className="shrink-0 text-[11px] text-[var(--muted)]">
                   {formatDateTime(file.updatedAt)}
@@ -442,76 +628,11 @@ function FolderCard({
           ))}
         </ul>
       )}
+      {isOpportunities && (
+        <div className="relative z-10">
+          <FolderDeliveries folderId={folder.id} disabled={disabled} />
+        </div>
+      )}
     </section>
-  );
-}
-
-function FileList({
-  files,
-  folderNames,
-  onDelete,
-}: {
-  files: WorkspaceFileSummary[];
-  /** Quando informado, mostra a pasta de cada arquivo. */
-  folderNames?: Map<string, string>;
-  onDelete: (file: WorkspaceFileSummary) => void;
-}) {
-  return (
-    <ul className="divide-y divide-[var(--border)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
-      {files.map((file) => (
-        <li key={file.id} className="flex items-center gap-3 py-2 pl-4 pr-2 hover:bg-black/[0.02]">
-          <FileText className="h-4 w-4 shrink-0 text-[var(--muted)]" />
-          <Link href={fileHref(file.workspaceId, file.id)} className="min-w-0 flex-1 py-1">
-            <span className="block truncate text-sm font-medium text-[var(--foreground)]">
-              {file.title}
-            </span>
-            <span className="block truncate text-xs text-[var(--muted)]">
-              {folderNames
-                ? `${file.folderId ? folderNames.get(file.folderId) : "Sem pasta"}${
-                    file.excerpt ? ` · ${file.excerpt}` : ""
-                  }`
-                : file.excerpt || "Sem conteúdo ainda"}
-            </span>
-          </Link>
-          <span className="hidden shrink-0 text-[11px] text-[var(--muted)] sm:block">
-            {formatDateTime(file.updatedAt)}
-          </span>
-          <IconButton title="Excluir arquivo" danger onClick={() => onDelete(file)}>
-            <Trash2 className="h-4 w-4" />
-          </IconButton>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function IconButton({
-  title,
-  danger = false,
-  disabled = false,
-  onClick,
-  children,
-}: {
-  title: string;
-  danger?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      disabled={disabled}
-      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] transition-colors disabled:opacity-50 ${
-        danger
-          ? "hover:bg-red-50 hover:text-red-600"
-          : "hover:bg-black/[0.05] hover:text-[var(--foreground)]"
-      }`}
-    >
-      {children}
-    </button>
   );
 }

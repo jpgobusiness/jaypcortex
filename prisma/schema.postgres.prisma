@@ -60,6 +60,7 @@ model Opportunity {
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
   activities Activity[]
+  folders    WorkspaceFolder[]
 
   @@index([stageId])
   @@index([commercialId])
@@ -463,6 +464,7 @@ model DailyHabitCheck {
 model Workspace {
   id          String            @id @default(cuid())
   name        String
+  key         String?           @unique
   description String?
   color       String            @default("#7b68ee")
   order       Int               @default(0)
@@ -477,16 +479,38 @@ model Workspace {
 
 /// Pasta de um espaço, para separar arquivos.
 model WorkspaceFolder {
-  id          String          @id @default(cuid())
-  workspaceId String
-  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name        String
-  order       Int             @default(0)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  files       WorkspaceFile[]
+  id            String          @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name          String
+  order         Int             @default(0)
+  opportunityId String?
+  opportunity   Opportunity?    @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  files         WorkspaceFile[]
+  assets        FolderAsset[]
 
   @@index([workspaceId, order])
+  @@index([opportunityId])
+}
+
+/// Arquivo no Storage (HTML de entrega, anexo, áudio). Binário nunca vai no Postgres.
+model FolderAsset {
+  id        String          @id @default(cuid())
+  folderId  String
+  folder    WorkspaceFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  kind      String
+  name      String
+  mimeType  String
+  size      Int
+  path      String
+  createdBy String?         @db.Uuid
+  source    String          @default("ui")
+  createdAt DateTime        @default(now())
+
+  @@index([folderId, createdAt])
+  @@index([kind])
 }
 
 /// Arquivo (página de conteúdo) de um espaço, solto ou dentro de uma pasta.
@@ -679,6 +703,7 @@ model FileRevision {
   hash       String
   createdBy  String?         @db.Uuid
   source     String          @default("ui")
+  note       String?
   proposalId String?
   proposal   ChangeProposal? @relation(fields: [proposalId], references: [id], onDelete: SetNull)
   createdAt  DateTime        @default(now())

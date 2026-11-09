@@ -1,11 +1,15 @@
 import type { Prisma } from "@/app/generated/prisma-postgres/client";
 import { prisma } from "@/lib/prisma";
 import { ok, badRequest, notFound, serverError, str, num } from "@/lib/api";
+import { requireApiUser } from "@/lib/auth";
+import { linkOpportunityFolder } from "@/lib/opportunities/service";
 import { NAME_MAX_LENGTH, NAME_TOO_LONG } from "@/lib/workspaces";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, { params }: Ctx) {
+  const { profile, error } = await requireApiUser();
+  if (error) return error;
   try {
     const { id } = await params;
     const body = await req.json();
@@ -29,7 +33,31 @@ export async function PATCH(req: Request, { params }: Ctx) {
     });
     if (!exists) return notFound("Pasta não encontrada");
 
-    const folder = await prisma.workspaceFolder.update({ where: { id }, data });
+    if (body.opportunityId !== undefined || body.opportunity_id !== undefined) {
+      const linked = await linkOpportunityFolder({
+        folder_id: id,
+        opportunity_id: str(body.opportunityId) ?? str(body.opportunity_id) ?? "",
+        createdBy: profile.id,
+        source: "ui",
+      });
+      if (body.name === undefined && body.order === undefined) return ok(linked);
+    }
+
+    const folder = await prisma.workspaceFolder.update({
+      where: { id },
+      data,
+      include: {
+        opportunity: {
+          select: {
+            id: true,
+            name: true,
+            client: true,
+            value: true,
+            stage: { select: { id: true, name: true, color: true } },
+          },
+        },
+      },
+    });
     return ok(folder);
   } catch (e) {
     return serverError(e);

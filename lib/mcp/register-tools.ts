@@ -12,6 +12,7 @@ import { writeAudit } from "@/lib/mcp/audit";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
 import { registerActivityTools } from "@/lib/mcp/register-activity-tools";
 import { registerCortexTools } from "@/lib/mcp/register-cortex-tools";
+import { registerOpportunityTools } from "@/lib/mcp/register-opportunity-tools";
 import { parseEditorDocument } from "@/lib/workspaces";
 import { readMeta, writeMeta, type ToolServer } from "@/lib/mcp/annotations";
 
@@ -51,6 +52,7 @@ export function registerMcpTools(
   const actor = { createdBy: ctx.profileId || null, source: "mcp" as const };
   registerActivityTools(server, ctx);
   registerCortexTools(server, ctx);
+  registerOpportunityTools(server, ctx);
 
   server.registerTool("list_agents", {
     ...readMeta("Listar agentes"),

@@ -126,11 +126,20 @@ export type EditorDocument = {
 export type Workspace = {
   id: string;
   name: string;
+  key?: string | null;
   description: string | null;
   color: string;
   order: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type FunnelOpportunityChip = {
+  id: string;
+  name: string;
+  client: string | null;
+  value: number;
+  stage: { id: string; name: string; color: string } | null;
 };
 
 export type WorkspaceFileSummary = {
@@ -145,6 +154,7 @@ export type WorkspaceFileSummary = {
   indexStatus?: string;
   indexedAt?: string | null;
   source?: string;
+  updatedBy?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -154,9 +164,24 @@ export type WorkspaceFolder = {
   workspaceId: string;
   name: string;
   order: number;
+  opportunityId?: string | null;
+  opportunity?: FunnelOpportunityChip | null;
   createdAt: string;
   updatedAt: string;
   files: WorkspaceFileSummary[];
+};
+
+export type FolderAsset = {
+  id: string;
+  folderId: string;
+  kind: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  source: string;
+  createdAt: string;
+  url?: string;
+  expires_at?: string;
 };
 
 /** Espaço com as pastas e os arquivos (sem o conteúdo dos arquivos). */

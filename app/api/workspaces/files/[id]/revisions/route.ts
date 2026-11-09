@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       where: { fileId: id },
       orderBy: { createdAt: "desc" },
       take: 40,
-      select: { id: true, title: true, hash: true, source: true, createdAt: true, createdBy: true },
+      select: { id: true, title: true, hash: true, source: true, note: true, createdAt: true, createdBy: true },
     });
     return ok(rows);
   } catch (e) {

@@ -12,6 +12,10 @@ export function notFound(message = "Não encontrado") {
   return NextResponse.json({ error: message }, { status: 404 });
 }
 
+export function conflict(data: unknown) {
+  return NextResponse.json(data, { status: 409 });
+}
+
 export function serverError(err: unknown) {
   const message = err instanceof Error ? err.message : "Erro interno";
   console.error(err);

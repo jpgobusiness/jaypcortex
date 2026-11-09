@@ -15,7 +15,9 @@ import {
 } from "lucide-react";
 import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
 import WorkspaceBadge from "@/components/workspaces/WorkspaceBadge";
-import { fileHref, workspaceHref } from "@/lib/workspaces";
+import { officeHref } from "@/lib/agents";
+import { TEMPLATES_FOLDER } from "@/lib/opportunities/constants";
+import { fileHref, folderHref, isAgentRoom, workspaceHref } from "@/lib/workspaces";
 import type {
   WorkspaceFileSummary,
   WorkspaceFolder,
@@ -23,8 +25,6 @@ import type {
 } from "@/lib/types";
 
 const ICON = "h-[18px] w-[18px] shrink-0";
-/** Chave do grupo "Salas dos agentes" no estado de abrir/fechar. */
-const ROOMS_GROUP = "__salas-dos-agentes__";
 
 function rowTone(active: boolean) {
   return active
@@ -37,10 +37,14 @@ function indent(depth: number) {
   return { paddingLeft: 12 + depth * 14 };
 }
 
-/** Lê o espaço e o arquivo abertos a partir da URL. */
+/** Lê o espaço, a pasta e o arquivo abertos a partir da URL. */
 function activeIds(pathname: string) {
-  const match = /^\/espacos\/([^/]+)(?:\/arquivos\/([^/]+))?/.exec(pathname);
-  return { workspaceId: match?.[1] ?? null, fileId: match?.[2] ?? null };
+  const file = /^\/espacos\/([^/]+)\/arquivos\/([^/]+)/.exec(pathname);
+  if (file) return { workspaceId: file[1], fileId: file[2], folderId: null };
+  const folder = /^\/espacos\/([^/]+)\/pastas\/([^/]+)/.exec(pathname);
+  if (folder) return { workspaceId: folder[1], fileId: null, folderId: folder[2] };
+  const workspace = /^\/espacos\/([^/]+)/.exec(pathname);
+  return { workspaceId: workspace?.[1] ?? null, fileId: null, folderId: null };
 }
 
 function findFolderOfFile(workspaces: WorkspaceTree[], fileId: string | null) {
@@ -66,14 +70,18 @@ export default function SidebarWorkspaces({ collapsed, onNavigate }: Props) {
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const [lastPath, setLastPath] = useState(pathname);
 
-  const { workspaceId: activeWorkspaceId, fileId: activeFileId } =
-    activeIds(pathname);
-  const activeFolderId = findFolderOfFile(workspaces, activeFileId);
-  const sectionActive = pathname.startsWith("/espacos");
-  // Salas dos agentes ficam num grupo à parte, depois dos espaços.
-  const spaces = workspaces.filter((workspace) => !workspace.agent);
-  const rooms = workspaces.filter((workspace) => workspace.agent);
-  const inRoom = rooms.some((room) => room.id === activeWorkspaceId);
+  const {
+    workspaceId: activeWorkspaceId,
+    fileId: activeFileId,
+    folderId: pathFolderId,
+  } = activeIds(pathname);
+  const activeFolderId = pathFolderId ?? findFolderOfFile(workspaces, activeFileId);
+  const sectionActive = pathname.startsWith("/espacos") || pathname.startsWith("/escritorio");
+  const spaces = workspaces.filter((workspace) => !isAgentRoom(workspace));
+  const inRoom = workspaces.some(
+    (workspace) => isAgentRoom(workspace) && workspace.id === activeWorkspaceId
+  );
+  const roomsActive = pathname.startsWith("/escritorio") || inRoom;
 
   // Ao navegar, volta a abrir o caminho até a página atual.
   if (lastPath !== pathname) {
@@ -86,9 +94,7 @@ export default function SidebarWorkspaces({ collapsed, onNavigate }: Props) {
     });
   }
 
-  // O espaço e a pasta da página atual começam abertos.
   function openByDefault(id: string) {
-    if (id === ROOMS_GROUP) return inRoom;
     return id === activeWorkspaceId || id === activeFolderId;
   }
 
@@ -116,7 +122,7 @@ export default function SidebarWorkspaces({ collapsed, onNavigate }: Props) {
         </button>
         {sectionOpen && (
           <>
-            {workspaces.map((workspace) => (
+            {spaces.map((workspace) => (
               <Link
                 key={workspace.id}
                 href={workspaceHref(workspace.id)}
@@ -129,6 +135,14 @@ export default function SidebarWorkspaces({ collapsed, onNavigate }: Props) {
                 <WorkspaceBadge workspace={workspace} />
               </Link>
             ))}
+            <Link
+              href={officeHref()}
+              onClick={onNavigate}
+              title="Sala dos agentes"
+              className={`flex h-10 w-full items-center justify-center transition-colors ${rowTone(roomsActive)}`}
+            >
+              <Bot className={ICON} strokeWidth={1.75} />
+            </Link>
             <button
               type="button"
               onClick={openCreateWorkspace}
@@ -190,14 +204,6 @@ export default function SidebarWorkspaces({ collapsed, onNavigate }: Props) {
             <p className="px-4 py-2 text-[12px] text-white/70">
               Não foi possível carregar os espaços.
             </p>
-          ) : workspaces.length === 0 ? (
-            <button
-              type="button"
-              onClick={openCreateWorkspace}
-              className="flex h-9 w-full items-center gap-2 px-4 text-left text-[12px] text-white/75 hover:bg-[var(--sidebar-hover)] hover:text-white"
-            >
-              <Plus className="h-3.5 w-3.5" /> Criar o primeiro espaço
-            </button>
           ) : (
             <>
               {spaces.map((workspace) => (
@@ -208,21 +214,20 @@ export default function SidebarWorkspaces({ collapsed, onNavigate }: Props) {
                   onToggle={toggle}
                   activeWorkspaceId={activeWorkspaceId}
                   activeFileId={activeFileId}
+                  activeFolderId={activeFolderId}
                   onNavigate={onNavigate}
                 />
               ))}
-              {rooms.length > 0 && (
-                <RoomsGroup
-                  rooms={rooms}
-                  open={isOpen(ROOMS_GROUP)}
-                  onToggleGroup={() => toggle(ROOMS_GROUP)}
-                  onToggle={toggle}
-                  isOpen={isOpen}
-                  activeWorkspaceId={activeWorkspaceId}
-                  activeFileId={activeFileId}
-                  onNavigate={onNavigate}
-                />
-              )}
+              <Link
+                href={officeHref()}
+                onClick={onNavigate}
+                className={`flex h-9 items-center gap-2 pr-2 text-[13px] transition-colors ${rowTone(roomsActive)}`}
+                style={indent(0)}
+              >
+                <span className="-mr-1 w-5 shrink-0" aria-hidden />
+                <Bot className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                <span className="min-w-0 flex-1 truncate">Sala dos agentes</span>
+              </Link>
             </>
           )}
         </div>
@@ -235,6 +240,7 @@ type TreeProps = {
   isOpen: (id: string) => boolean;
   onToggle: (id: string) => void;
   activeFileId: string | null;
+  activeFolderId: string | null;
   onNavigate?: () => void;
 };
 
@@ -245,7 +251,8 @@ function SpaceNode({
   ...tree
 }: TreeProps & { workspace: WorkspaceTree; activeWorkspaceId: string | null; depth?: number }) {
   const open = tree.isOpen(workspace.id);
-  const active = activeWorkspaceId === workspace.id && !tree.activeFileId;
+  const active =
+    activeWorkspaceId === workspace.id && !tree.activeFileId && !tree.activeFolderId;
   const empty = workspace.folders.length === 0 && workspace.files.length === 0;
 
   return (
@@ -271,7 +278,9 @@ function SpaceNode({
       </div>
       {open && (
         <div>
-          {workspace.folders.map((folder) => (
+          {workspace.folders
+            .filter((folder) => folder.name !== TEMPLATES_FOLDER)
+            .map((folder) => (
             <FolderNode key={folder.id} folder={folder} depth={depth + 1} {...tree} />
           ))}
           {workspace.files.map((file) => (
@@ -284,78 +293,39 @@ function SpaceNode({
   );
 }
 
-/** Grupo recolhível com as salas dos agentes do escritório. */
-function RoomsGroup({
-  rooms,
-  open,
-  onToggleGroup,
-  activeWorkspaceId,
-  ...tree
-}: TreeProps & {
-  rooms: WorkspaceTree[];
-  open: boolean;
-  onToggleGroup: () => void;
-  activeWorkspaceId: string | null;
-}) {
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onToggleGroup}
-        aria-expanded={open}
-        className={`flex h-9 w-full items-center gap-2 pr-2 text-left text-[13px] transition-colors ${rowTone(false)}`}
-        style={indent(0)}
-      >
-        <span className="-mr-1 inline-flex w-5 shrink-0 justify-center text-white/70">
-          <ChevronRight className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`} />
-        </span>
-        <Bot className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-        <span className="min-w-0 flex-1 truncate">Salas dos agentes</span>
-        <span className="shrink-0 text-[11px] text-white/60">{rooms.length}</span>
-      </button>
-      {open &&
-        rooms.map((workspace) => (
-          <SpaceNode
-            key={workspace.id}
-            workspace={workspace}
-            activeWorkspaceId={activeWorkspaceId}
-            depth={1}
-            {...tree}
-          />
-        ))}
-    </div>
-  );
-}
-
 function FolderNode({
   folder,
   depth,
   ...tree
 }: TreeProps & { folder: WorkspaceFolder; depth: number }) {
   const open = tree.isOpen(folder.id);
+  const active = tree.activeFolderId === folder.id && !tree.activeFileId;
   const Icon = open ? FolderOpen : Folder;
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => tree.onToggle(folder.id)}
-        aria-expanded={open}
-        title={folder.name}
-        className={`flex h-8 w-full items-center gap-2 pr-2 text-left text-[13px] transition-colors ${rowTone(false)}`}
+      <div
+        className={`flex h-8 items-center pr-2 text-[13px] transition-colors ${rowTone(active)}`}
         style={indent(depth)}
       >
-        <span className="-mr-1 inline-flex w-5 shrink-0 justify-center text-white/70">
-          <ChevronRight
-            className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-90" : ""}`}
-          />
-        </span>
-        <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-        <span className="min-w-0 flex-1 truncate">{folder.name}</span>
-        <span className="shrink-0 text-[11px] text-white/60">
-          {folder.files.length}
-        </span>
-      </button>
+        <TreeChevron
+          open={open}
+          label={folder.name}
+          onClick={() => tree.onToggle(folder.id)}
+        />
+        <Link
+          href={folderHref(folder.workspaceId, folder.id)}
+          onClick={tree.onNavigate}
+          title={folder.name}
+          className="flex h-8 min-w-0 flex-1 items-center gap-2"
+        >
+          <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+          <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+          <span className="shrink-0 text-[11px] text-white/60">
+            {folder.files.length}
+          </span>
+        </Link>
+      </div>
       {open &&
         (folder.files.length > 0 ? (
           folder.files.map((file) => (

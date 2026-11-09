@@ -3,6 +3,7 @@
 import type {
   EditorDocument,
   WorkspaceFileSummary,
+  WorkspaceFolder,
   WorkspaceTree,
 } from "@/lib/types";
 
@@ -32,8 +33,18 @@ export function workspaceHref(workspaceId: string) {
   return `/espacos/${workspaceId}`;
 }
 
+/** Sala de um agente (prompt/base ficam no Escritório, não na lista de espaços). */
+export function isAgentRoom(workspace: { name?: string; agent?: unknown | null }) {
+  if (workspace.agent) return true;
+  return /^sala de /i.test((workspace.name ?? "").trim());
+}
+
 export function fileHref(workspaceId: string, fileId: string) {
   return `/espacos/${workspaceId}/arquivos/${fileId}`;
+}
+
+export function folderHref(workspaceId: string, folderId: string) {
+  return `/espacos/${workspaceId}/pastas/${folderId}`;
 }
 
 export function isHexColor(value: unknown): value is string {
@@ -112,6 +123,12 @@ export function lastWorkspaceUpdate(workspace: WorkspaceTree): string {
     ...workspace.folders.map((folder) => folder.updatedAt),
     ...workspaceFiles(workspace).map((file) => file.updatedAt),
   ];
+  return dates.reduce((latest, date) => (date > latest ? date : latest));
+}
+
+/** Data da alteração mais recente na pasta (ela ou os arquivos). */
+export function lastFolderUpdate(folder: WorkspaceFolder): string {
+  const dates = [folder.updatedAt, ...folder.files.map((file) => file.updatedAt)];
   return dates.reduce((latest, date) => (date > latest ? date : latest));
 }
 

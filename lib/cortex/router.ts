@@ -64,6 +64,14 @@ function isMapAsk(norm: string) {
   return /(map|assess|aws|funding|migracao|7r|mobilize|workload)/.test(norm);
 }
 
+function isProposalAsk(norm: string) {
+  if (/(tarefa|atividade|procrastin)/.test(norm) && !/(oportunidade|transcri|proposal doc)/.test(norm)) {
+    return false;
+  }
+  return /(montar proposta|proposal doc|oportunidade|transcri[cç]ao|\bmpe\b|arquitetura da proposta|escopo da proposta|grava.*se[cç][aã]o)/.test(norm)
+    || (/\bproposta\b/.test(norm) && !isMapAsk(norm));
+}
+
 function isMethodAsk(norm: string) {
   return /(como funciona|o que e|explica|metodologia|template)/.test(norm);
 }
@@ -114,6 +122,21 @@ export function routeFromAgents(
       });
       return { agent, ...local };
     });
+
+  if (isProposalAsk(normalized) && !isMapAsk(normalized)) {
+    const propostas = scored.find((s) => s.agent.slug === "propostas");
+    if (propostas) {
+      propostas.score = Math.max(propostas.score, 0.72);
+      propostas.mode = "acao";
+      if (!propostas.intent) {
+        const routing = asAgentRouting(propostas.agent.routing);
+        propostas.intent = routing.intents?.find((item) => item.key === "montar_proposta")
+          ?? routing.intents?.[0]
+          ?? null;
+      }
+      propostas.reasons.push("regra:proposta");
+    }
+  }
 
   // Tempo + MAP: pergunta de carga/semana cai no Gestor; "como funciona" cai no MAP.
   if (isTimeAsk(normalized) && isMapAsk(normalized)) {

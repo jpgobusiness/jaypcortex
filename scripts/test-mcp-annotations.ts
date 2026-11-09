@@ -26,7 +26,7 @@ const READ_ONLY = new Set([
   "get_agent", "get_agent_prompt", "get_proposal", "get_document_history",
   "get_activity", "get_queue", "get_daily_briefing", "get_weekly_review",
   "get_activity_history", "read_document", "search_knowledge", "search_activities",
-  "plan_day",
+  "plan_day", "list_opportunity_folders", "get_document_outline", "read_section",
 ]);
 
 const DESTRUCTIVE = new Set([

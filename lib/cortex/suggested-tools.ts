@@ -3,7 +3,7 @@ import { hasScope, type McpScope } from "@/lib/mcp/tokens";
 import { normalize } from "@/lib/cortex/normalize";
 import type { CortexIntent, SuggestedTool } from "@/lib/cortex/types";
 
-const DESTRUCTIVE = new Set(["delete_activity", "purge_deleted_activities"]);
+const DESTRUCTIVE = new Set(["delete_activity", "purge_deleted_activities", "delete_section"]);
 const WRITE_TOOLS = new Set([
   "create_activity", "create_activities_bulk", "update_activity",
   "start_activity", "pause_activity", "complete_activity", "reopen_activity",
@@ -11,6 +11,9 @@ const WRITE_TOOLS = new Set([
   "queue_activity", "unqueue_activity", "move_in_queue", "reorder_queue",
   "reschedule_activity", "add_reminder", "dismiss_reminder", "add_subtask",
   "create_activity_type", "undo_last_action", "purge_deleted_activities",
+  "create_opportunity_folder", "create_file_in_folder", "upsert_section",
+  "append_to_document", "link_opportunity_folder", "delete_section",
+  "import_transcript", "register_delivery",
 ]);
 
 function titleGuess(request: string) {
@@ -77,6 +80,30 @@ export async function buildSuggestedTools(opts: {
     } else if (name === "search_knowledge") {
       args = { query: opts.request };
       why = "Buscar método na base (não usa para achar tarefa).";
+    } else if (name === "list_opportunity_folders") {
+      why = "Listar pastas do espaço Oportunidades.";
+    } else if (name === "create_opportunity_folder") {
+      why = "Criar pasta + Contexto + Proposal Doc.";
+      requires_confirmation = true;
+    } else if (name === "upsert_section") {
+      why = "Gravar uma seção depois do ok do João. Passe expected_hash.";
+      requires_confirmation = true;
+    } else if (name === "read_section" || name === "get_document_outline") {
+      why = "Ler o Proposal Doc por seção, sem reconverter o documento.";
+    } else if (name === "link_opportunity_folder") {
+      why = "Vincular a pasta à Opportunity do funil.";
+      requires_confirmation = true;
+    } else if (name === "delete_section") {
+      why = "Apagar uma seção depois do ok do João. Passe expected_hash.";
+      requires_confirmation = true;
+    } else if (name === "import_transcript") {
+      why = "Gravar texto já transcrito como kind=transcricao.";
+      requires_confirmation = true;
+    } else if (name === "register_delivery") {
+      why = "Registrar o HTML da proposta no Storage.";
+      requires_confirmation = true;
+    } else if (name === "get_proposal_template") {
+      why = "Obter o HTML base e o mapa de seções para montar a entrega.";
     } else if (
       name === "complete_activity"
       || name === "delete_activity"

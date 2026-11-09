@@ -2,16 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { FileText, Folder, Layers, Pencil, Plus, Trash2 } from "lucide-react";
+import { Bot, FileText, Folder, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/form";
 import WorkspaceBadge from "@/components/workspaces/WorkspaceBadge";
 import WorkspaceFormModal from "@/components/workspaces/WorkspaceFormModal";
 import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
 import { apiDelete } from "@/lib/fetcher";
+import { officeHref } from "@/lib/agents";
 import {
   countLabel,
   formatDateTime,
+  isAgentRoom,
   lastWorkspaceUpdate,
   workspaceFiles,
   workspaceHref,
@@ -22,6 +24,8 @@ export default function EspacosPage() {
   const { workspaces, loading, error, reload, openCreateWorkspace } =
     useWorkspaces();
   const [editing, setEditing] = useState<Workspace | null>(null);
+  const spaces = workspaces.filter((workspace) => !isAgentRoom(workspace));
+  const rooms = workspaces.filter((workspace) => Boolean(workspace.agent));
 
   // Atualiza as contagens sempre que a página abre.
   useEffect(() => {
@@ -52,7 +56,7 @@ export default function EspacosPage() {
     <div>
       <PageHeader
         title="Espaços de Trabalho"
-        subtitle="Cada espaço tem um dashboard, pastas e arquivos com o seu conteúdo."
+        subtitle="MAP, oportunidades e a sala dos agentes. Prompt e base de cada agente ficam no Escritório."
         actions={
           <Button onClick={openCreateWorkspace}>
             <Plus className="h-4 w-4" /> Novo espaço
@@ -65,7 +69,7 @@ export default function EspacosPage() {
           <p className="py-10 text-center text-[var(--muted)]">Carregando...</p>
         ) : error ? (
           <p className="py-10 text-center text-sm text-red-600">{error}</p>
-        ) : workspaces.length === 0 ? (
+        ) : spaces.length === 0 && rooms.length === 0 ? (
           <div className="mx-auto max-w-md rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-6 py-12 text-center">
             <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-[var(--brand-600)]">
               <Layers className="h-6 w-6" />
@@ -82,7 +86,16 @@ export default function EspacosPage() {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {workspaces.map((workspace) => (
+            {spaces.slice(0, 1).map((workspace) => (
+              <WorkspaceCard
+                key={workspace.id}
+                workspace={workspace}
+                onEdit={() => setEditing(workspace)}
+                onDelete={() => remove(workspace)}
+              />
+            ))}
+            <AgentRoomsCard count={rooms.length} />
+            {spaces.slice(1).map((workspace) => (
               <WorkspaceCard
                 key={workspace.id}
                 workspace={workspace}
@@ -101,6 +114,35 @@ export default function EspacosPage() {
         onSaved={reload}
       />
     </div>
+  );
+}
+
+function AgentRoomsCard({ count }: { count: number }) {
+  return (
+    <article className="relative flex flex-col rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 transition-shadow hover:shadow-md">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--brand)]/10 text-[var(--brand-600)]">
+          <Bot className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-base font-semibold text-[var(--foreground)]">
+            <Link href={officeHref()} className="after:absolute after:inset-0 after:rounded-2xl">
+              Sala dos agentes
+            </Link>
+          </h2>
+          <p className="mt-1 line-clamp-2 text-sm leading-5 text-[var(--muted)]">
+            Prompt, base de conhecimento, templates e entregas de cada agente.
+          </p>
+        </div>
+      </div>
+      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--muted)]">
+        <span className="inline-flex items-center gap-1.5">
+          <Bot className="h-3.5 w-3.5" />
+          {countLabel(count, "sala", "salas")}
+        </span>
+        <span className="ml-auto">Abre no Escritório</span>
+      </div>
+    </article>
   );
 }
 

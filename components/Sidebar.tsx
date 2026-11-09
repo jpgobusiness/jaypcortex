@@ -46,6 +46,7 @@ const PESSOAL = [
 ];
 
 const PROFISSIONAL = [
+  { href: "/comercial", label: "Comercial", icon: Briefcase },
   { href: "/horas-extras", label: "Horas Extras", icon: Timer },
   { href: "/automacoes", label: "Automações", icon: Zap },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
