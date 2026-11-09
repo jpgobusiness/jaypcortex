@@ -7,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 9 nov 2026 (tabelas Markdown no TipTap)
+Última atualização: 9 nov 2026 (grade visível nas tabelas do editor)
 
 ## Últimas mudanças
 
+- 9 nov 2026 — **Grade da tabela no editor:** bordas `#c5cad3`, cabeçalho cinza e wrapper com recorte; o Tailwind zerava borda/padding e `--border` (#e8eaee) sumia no fundo branco.
 - 9 nov 2026 — **Tabelas no documento:** Markdown GFM (`| col |`) vira nodes TipTap `table`/`tableRow`/`tableHeader`/`tableCell` no `upsert_section` / `append_to_document` / `create_file_in_folder`. Editor e conversor compartilham a extensão Table. Conteúdo antigo achatado em parágrafo não se recompõe sozinho — precisa regravar a seção.
 - 9 nov 2026 — **Quick Action Review em escritas:** `tools/list` marca JSON Schema Draft 7; escritas só string. `create_opportunity_folder` pede só `name`. `create_file_in_folder` pede `folder` (nome) + `title`, sem id. Depois do deploy: Sync + habilitar tools no JayPCortexChat.
 - 9 nov 2026 — **Página da pasta e edição no espaço:** clicar no espaço abre `/espacos/[id]` com nome/descrição editáveis, contagens e listagem. Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, arquivos, funil, entregas). Menu e breadcrumb do arquivo apontam para a pasta.
 - 9 nov 2026 — **Espaços de trabalho:** a lista `/espacos` não mostra mais as salas individuais (Ana, Leo, Bia…). Ficam MAP - MIGRAÇÕES, o cartão **Sala dos agentes** (abre `/escritorio`) e **Oportunidades**. Prompt/base continuam no Escritório.
-- 9 nov 2026 — **Fase C Oportunidades feita:** `delete_section` (MCP+REST, `not_found`/`conflict`, revisão restaurável); importar transcrição (.txt/.md/.vtt/.srt/.docx) + `import_transcript` (parte N se > 5 MB); bucket `opportunity-files` + tabela `FolderAsset`; `register_delivery` + UI Entregas; `get_proposal_template` + `templates/propostas/`. Agente `propostas` republicado. Após deploy: Sync no JayPCortexChat.
 
 ---
 

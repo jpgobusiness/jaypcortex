@@ -17,6 +17,6 @@ export const documentExtensions: Extensions = [
   TaskItem.configure({ nested: true }),
   Highlight,
   TableKit.configure({
-    table: { resizable: false, renderWrapper: true },
+    table: { resizable: false, renderWrapper: true, cellMinWidth: 96 },
   }),
 ];

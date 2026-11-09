@@ -291,7 +291,9 @@ body {
 }
 .tiptap-content .tableWrapper {
   overflow-x: auto;
-  margin: 0.75em 0;
+  margin: 1em 0;
+  border: 1px solid #c5cad3;
+  border-radius: 0.5rem;
 }
 .tiptap-content table {
   width: 100%;
@@ -299,18 +301,25 @@ body {
   table-layout: auto;
   font-size: 0.9rem;
   line-height: 1.45;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .tiptap-content th,
 .tiptap-content td {
-  border: 1px solid var(--border);
-  padding: 0.45rem 0.65rem;
+  border: 1px solid #c5cad3;
+  padding: 0.55rem 0.75rem;
   vertical-align: top;
-  min-width: 6rem;
+  min-width: 5.5rem;
+  background: #fff;
 }
 .tiptap-content th {
-  background: rgba(15, 23, 42, 0.05);
-  font-weight: 600;
+  background: #eef0f4;
+  font-weight: 650;
   text-align: left;
+}
+.tiptap-content th p,
+.tiptap-content td p {
+  margin: 0;
 }
 .tiptap-content .selectedCell {
   background: color-mix(in srgb, var(--brand) 12%, transparent);
