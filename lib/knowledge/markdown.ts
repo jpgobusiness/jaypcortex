@@ -1,17 +1,8 @@
 import { generateJSON } from "@tiptap/html/server";
-import StarterKit from "@tiptap/starter-kit";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { Highlight } from "@tiptap/extension-highlight";
 import { marked } from "marked";
 import type { EditorDocument } from "@/lib/types";
+import { documentExtensions } from "@/lib/tiptap/schema-extensions";
 import { isEditorDocument } from "@/lib/workspaces";
-
-const EXTENSIONS = [
-  StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-  TaskList,
-  TaskItem.configure({ nested: true }),
-  Highlight,
-];
 
 function escapeHtml(value: string): string {
   return value
@@ -24,7 +15,7 @@ function escapeHtml(value: string): string {
 export function markdownToTiptap(markdown: string): EditorDocument {
   const html = marked.parse(markdown || "", { async: false, gfm: true }) as string;
   const safe = html.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "");
-  const json = generateJSON(safe || "<p></p>", EXTENSIONS);
+  const json = generateJSON(safe || "<p></p>", documentExtensions);
   if (isEditorDocument(json)) return json;
   return { type: "doc", content: [{ type: "paragraph" }] };
 }
@@ -94,12 +85,33 @@ export function tiptapToMarkdown(doc: EditorDocument | null | undefined): string
       lines.push("\n```\n" + code + "\n```\n\n");
       return;
     }
+    if (type === "table") {
+      lines.push(tableToMarkdown(node));
+      return;
+    }
     node.content?.forEach((c) => walk(c, listPrefix));
   }
 
   function inline(node: EditorDocument): string {
     if (node.text) return marks(node.text, node);
     return (node.content ?? []).map(inline).join("");
+  }
+
+  function tableToMarkdown(node: EditorDocument): string {
+    const rows = (node.content ?? [])
+      .filter((row) => row.type === "tableRow")
+      .map((row) =>
+        (row.content ?? []).map((cell) =>
+          inline(cell).replaceAll("|", "\\|").replace(/\s*\n+\s*/g, " ").trim()
+        )
+      );
+    if (!rows.length) return "";
+    const width = Math.max(...rows.map((row) => row.length), 1);
+    const padded = rows.map((row) => Array.from({ length: width }, (_, i) => row[i] ?? ""));
+    const header = padded[0];
+    const sep = header.map(() => "---");
+    const body = padded.slice(1).map((row) => `| ${row.join(" | ")} |`);
+    return `\n| ${header.join(" | ")} |\n| ${sep.join(" | ")} |\n${body.length ? body.join("\n") + "\n" : ""}\n`;
   }
 
   walk(doc);

@@ -65,6 +65,20 @@ test("outline fatiar até o próximo heading do mesmo nível", () => {
   assert.equal(escopo.some((n) => n.type === "table"), false);
 });
 
+test("upsert_section com tabela Markdown grava nodes table", () => {
+  const result = upsertSection(sample, {
+    heading: "Investimento",
+    markdown: "| Item | Valor |\n| --- | --- |\n| Licença | 10 |",
+  });
+  const items = outline(result.doc);
+  const investimento = items.find((s) => s.heading === "Investimento")!;
+  const slice = result.doc.content!.slice(investimento.start, investimento.end);
+  assert.ok(slice.some((n) => n.type === "table"));
+  const read = readSection(result.doc, { heading: "Investimento" });
+  assert.match(read.markdown, /\| Item \| Valor \|/);
+  assert.match(read.markdown, /Licença/);
+});
+
 test("tabela em outra seção permanece após upsert", () => {
   const result = upsertSection(sample, { heading: "Escopo", markdown: "novo escopo com **negrito**" });
   const items = outline(result.doc);

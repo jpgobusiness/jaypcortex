@@ -2,11 +2,9 @@
 
 import { memo, useEffect, useRef, useState } from "react";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { Placeholder } from "@tiptap/extensions";
-import { Highlight } from "@tiptap/extension-highlight";
 import EditorToolbar from "@/components/workspaces/EditorToolbar";
+import { documentExtensions } from "@/lib/tiptap/schema-extensions";
 import { DEFAULT_FILE_TITLE, TITLE_MAX_LENGTH } from "@/lib/workspaces";
 import type { EditorDocument } from "@/lib/types";
 
@@ -36,16 +34,10 @@ function FileEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
-      }),
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Highlight,
+      ...documentExtensions,
       Placeholder.configure({
         placeholder:
-          "Escreva aqui. Atalhos: # título, - lista, 1. lista numerada, [ ] checklist, > citação.",
+          "Escreva aqui. Atalhos: # título, - lista, 1. lista numerada, [ ] checklist, > citação. Tabela: botão na barra.",
       }),
     ],
     content: initialContent,

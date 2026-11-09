@@ -289,6 +289,32 @@ body {
   color: #9ca3af;
   content: attr(data-placeholder);
 }
+.tiptap-content .tableWrapper {
+  overflow-x: auto;
+  margin: 0.75em 0;
+}
+.tiptap-content table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.tiptap-content th,
+.tiptap-content td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.65rem;
+  vertical-align: top;
+  min-width: 6rem;
+}
+.tiptap-content th {
+  background: rgba(15, 23, 42, 0.05);
+  font-weight: 600;
+  text-align: left;
+}
+.tiptap-content .selectedCell {
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
 
 /* ---- Escritório de agentes ---- */
 @keyframes bubbleIn {

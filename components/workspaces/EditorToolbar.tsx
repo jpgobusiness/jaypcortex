@@ -4,6 +4,7 @@ import { useEditorState, type Editor } from "@tiptap/react";
 import {
   Bold,
   Code,
+  Columns3,
   Heading1,
   Heading2,
   Heading3,
@@ -16,8 +17,11 @@ import {
   Minus,
   Quote,
   Redo2,
+  Rows3,
   SquareCode,
   Strikethrough,
+  Table2,
+  Trash2,
   Underline,
   Undo2,
   Unlink,
@@ -61,6 +65,7 @@ export default function EditorToolbar({ editor }: { editor: Editor | null }) {
             taskList: current.isActive("taskList"),
             blockquote: current.isActive("blockquote"),
             codeBlock: current.isActive("codeBlock"),
+            table: current.isActive("table"),
             canUndo: current.can().undo(),
             canRedo: current.can().redo(),
           }
@@ -129,6 +134,32 @@ export default function EditorToolbar({ editor }: { editor: Editor | null }) {
       { label: "Citação", icon: Quote, active: state?.blockquote, onClick: () => run((c) => c.toggleBlockquote()) },
       { label: "Bloco de código", icon: SquareCode, active: state?.codeBlock, onClick: () => run((c) => c.toggleCodeBlock()) },
       { label: "Divisor", icon: Minus, onClick: () => run((c) => c.setHorizontalRule()) },
+    ],
+    [
+      {
+        label: "Inserir tabela",
+        icon: Table2,
+        active: state?.table,
+        onClick: () => run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true })),
+      },
+      {
+        label: "Linha abaixo",
+        icon: Rows3,
+        disabled: !state?.table,
+        onClick: () => run((c) => c.addRowAfter()),
+      },
+      {
+        label: "Coluna à direita",
+        icon: Columns3,
+        disabled: !state?.table,
+        onClick: () => run((c) => c.addColumnAfter()),
+      },
+      {
+        label: "Excluir tabela",
+        icon: Trash2,
+        disabled: !state?.table,
+        onClick: () => run((c) => c.deleteTable()),
+      },
     ],
   ];
 

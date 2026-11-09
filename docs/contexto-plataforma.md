@@ -7,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 9 nov 2026 (Action Review do Quick em tools de escrita)
+Última atualização: 9 nov 2026 (tabelas Markdown no TipTap)
 
 ## Últimas mudanças
 
+- 9 nov 2026 — **Tabelas no documento:** Markdown GFM (`| col |`) vira nodes TipTap `table`/`tableRow`/`tableHeader`/`tableCell` no `upsert_section` / `append_to_document` / `create_file_in_folder`. Editor e conversor compartilham a extensão Table. Conteúdo antigo achatado em parágrafo não se recompõe sozinho — precisa regravar a seção.
 - 9 nov 2026 — **Quick Action Review em escritas:** `tools/list` marca JSON Schema Draft 7; escritas só string. `create_opportunity_folder` pede só `name`. `create_file_in_folder` pede `folder` (nome) + `title`, sem id. Depois do deploy: Sync + habilitar tools no JayPCortexChat.
 - 9 nov 2026 — **Página da pasta e edição no espaço:** clicar no espaço abre `/espacos/[id]` com nome/descrição editáveis, contagens e listagem. Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, arquivos, funil, entregas). Menu e breadcrumb do arquivo apontam para a pasta.
 - 9 nov 2026 — **Espaços de trabalho:** a lista `/espacos` não mostra mais as salas individuais (Ana, Leo, Bia…). Ficam MAP - MIGRAÇÕES, o cartão **Sala dos agentes** (abre `/escritorio`) e **Oportunidades**. Prompt/base continuam no Escritório.
 - 9 nov 2026 — **Fase C Oportunidades feita:** `delete_section` (MCP+REST, `not_found`/`conflict`, revisão restaurável); importar transcrição (.txt/.md/.vtt/.srt/.docx) + `import_transcript` (parte N se > 5 MB); bucket `opportunity-files` + tabela `FolderAsset`; `register_delivery` + UI Entregas; `get_proposal_template` + `templates/propostas/`. Agente `propostas` republicado. Após deploy: Sync no JayPCortexChat.
-- 9 nov 2026 — **Fase B Oportunidades feita:** UI “Nova oportunidade” / “Nova transcrição”, badges de `kind`, pasta `_Templates` no toggle, chip do funil, `/comercial` com bloco Documentos, selo “editado pelo Quick” + revisão com nome da seção, tool `link_opportunity_folder`, agente `propostas` no Cortex.
 
 ---
 
@@ -63,11 +63,11 @@ Tudo é de **um operador** (você). Não há multi-empresa nem “criar conta”
 - **Configurações** — tipos e status de atividade + **Tokens MCP** (admin: criar/listar/revogar)
 
 ### Conhecimento e agentes
-- **Espaços de trabalho** — `/espacos` lista só espaços de conteúdo (hoje **MAP - MIGRAÇÕES** e **Oportunidades**) + cartão **Sala dos agentes** → `/escritorio`. Salas Ana/Leo/Bia/Rafa/Duda/João (e demais agentes) **não** aparecem como espaço. Clicar no espaço abre `/espacos/[id]` (nome/descrição editáveis, contagens, pastas e arquivos). Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, listar arquivos, funil e entregas). Editor TipTap com `kind`, tags, índice, histórico e selo “editado pelo Quick”. Espaço **Oportunidades**: Nova oportunidade, transcrição, Entregas.
+- **Espaços de trabalho** — `/espacos` lista só espaços de conteúdo (hoje **MAP - MIGRAÇÕES** e **Oportunidades**) + cartão **Sala dos agentes** → `/escritorio`. Salas Ana/Leo/Bia/Rafa/Duda/João (e demais agentes) **não** aparecem como espaço. Clicar no espaço abre `/espacos/[id]` (nome/descrição editáveis, contagens, pastas e arquivos). Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, listar arquivos, funil e entregas). Editor TipTap com tabelas, `kind`, tags, índice, histórico e selo “editado pelo Quick”. Espaço **Oportunidades**: Nova oportunidade, transcrição, Entregas.
 - **Comercial** — `/comercial`: funil (`Opportunity`) e bloco Documentos da pasta vinculada.
 - **Escritório de agentes** — agentes 3D, cada um com “sala” (um Workspace) e pastas padrão: `Prompt`, `Base de conhecimento`, `Templates`, `Entregas`. Painel com abas: Visão, Prompt, Base, Propostas, Histórico, Testar.
 - **Base de conhecimento do agente** — **não copia** o documento; é um vínculo `AgentKnowledge` → `WorkspaceFile`. Continua editável por **Base de conhecimento → Novo arquivo** (editor TipTap).
-- **MCP (plataforma)** — um endpoint para todos os agentes. Leitura, propostas e escrita via tools; Markdown só na borda MCP; banco permanece TipTap JSON. Não é chat.
+- **MCP (plataforma)** — um endpoint para todos os agentes. Leitura, propostas e escrita via tools; Markdown só na borda MCP (incluindo tabelas GFM); banco permanece TipTap JSON. Não é chat.
 
 ### Comercial
 - Funil: `Stage`, `Opportunity`, `Commercial` — UI em `/comercial` (lista + detalhe com Documentos)
@@ -316,7 +316,7 @@ Painel Auth (`disable_signup`) ainda pode aparecer ligado: a service role **não
 
 Arquitetura: **um MCP = o escritório Nuage/JayP Cortex**. Amazon Quick conecta uma vez e opera **qualquer** agente (Cortex, Ana, MAP, novos). Não há MCP por agente.
 
-- Fonte da verdade: `WorkspaceFile.content` (JSON TipTap). Markdown só na borda MCP / leitura. Edição por seção (`lib/tiptap/sections.ts`) fatiar o JSON; **não** reconverter o documento inteiro.
+- Fonte da verdade: `WorkspaceFile.content` (JSON TipTap). Markdown só na borda MCP / leitura. Conversor `markdownToTiptap` gera nodes de tabela a partir de GFM (`| col |`); o editor usa a mesma schema (`TableKit`). Edição por seção (`lib/tiptap/sections.ts`) fatiar o JSON; **não** reconverter o documento inteiro.
 - Base do agente = `AgentKnowledge` (vínculo, não cópia). UI: Base → Novo arquivo → editor.
 - `kind` + `tags[]` + FTS + pgvector; indexação no `PATCH` do arquivo.
 - MCP Streamable HTTP: `https://jaypcortex.vercel.app/api/mcp` (também `/api/mcp/mcp`). Header `Authorization: Bearer <token>` — estático `jpc_…` **ou** access token OAuth. Escopos `read` / `propose` / `write` / `admin`.
