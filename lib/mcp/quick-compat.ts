@@ -124,7 +124,7 @@ function sanitizeTool(tool: Record<string, unknown>) {
   const annotations = next.annotations && typeof next.annotations === "object"
     ? { ...(next.annotations as Record<string, unknown>) }
     : null;
-  const isWrite = Boolean(annotations) && annotations.readOnlyHint !== true;
+  const isWrite = annotations != null && annotations.readOnlyHint !== true;
   if (next.inputSchema) next.inputSchema = toDraft7Schema(next.inputSchema, { stringsOnly: isWrite, root: true });
   if (annotations) {
     delete annotations.title;
