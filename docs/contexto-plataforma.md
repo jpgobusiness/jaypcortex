@@ -7,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 9 nov 2026 (página da pasta + edição do espaço)
+Última atualização: 9 nov 2026 (Action Review do Quick em tools de escrita)
 
 ## Últimas mudanças
 
+- 9 nov 2026 — **Quick Action Review em escritas:** `tools/list` marca JSON Schema Draft 7; tools de escrita (pasta/arquivo/seção/tarefa) só com campos string. `create_opportunity_folder` pede só `name` e cria Contexto + Proposal Doc. Depois do deploy: Sync + habilitar tools no JayPCortexChat.
 - 9 nov 2026 — **Página da pasta e edição no espaço:** clicar no espaço abre `/espacos/[id]` com nome/descrição editáveis, contagens e listagem. Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, arquivos, funil, entregas). Menu e breadcrumb do arquivo apontam para a pasta.
 - 9 nov 2026 — **Espaços de trabalho:** a lista `/espacos` não mostra mais as salas individuais (Ana, Leo, Bia…). Ficam MAP - MIGRAÇÕES, o cartão **Sala dos agentes** (abre `/escritorio`) e **Oportunidades**. Prompt/base continuam no Escritório.
 - 9 nov 2026 — **Fase C Oportunidades feita:** `delete_section` (MCP+REST, `not_found`/`conflict`, revisão restaurável); importar transcrição (.txt/.md/.vtt/.srt/.docx) + `import_transcript` (parte N se > 5 MB); bucket `opportunity-files` + tabela `FolderAsset`; `register_delivery` + UI Entregas; `get_proposal_template` + `templates/propostas/`. Agente `propostas` republicado. Após deploy: Sync no JayPCortexChat.
 - 9 nov 2026 — **Fase B Oportunidades feita:** UI “Nova oportunidade” / “Nova transcrição”, badges de `kind`, pasta `_Templates` no toggle, chip do funil, `/comercial` com bloco Documentos, selo “editado pelo Quick” + revisão com nome da seção, tool `link_opportunity_folder`, agente `propostas` no Cortex.
-- 9 nov 2026 — **Fase A Oportunidades feita:** `Workspace.key`, `WorkspaceFolder.opportunityId`, kinds novos, seed + `_Templates`, `lib/tiptap/sections.ts`, 7 tools MCP e REST `/sections`. `expected_hash` → `conflict`.
 
 ---
 
@@ -34,7 +34,7 @@
 | Hospedagem | **Vercel** em https://jaypcortex.vercel.app. GitHub `jpgobusiness/jaypcortex`. Node 22. |
 | Edge Functions | Zero (MCP e indexação no Next/Vercel) |
 | Storage | Buckets privados `overtime-attachments` (horas extras) e `opportunity-files` (HTML de entrega, anexos, áudio). Binário nunca no Postgres (só `path`). Acesso via API Next + service role; URL assinada curta (5 min). |
-| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Porta de entrada: tool **`cortex`**. Tools com `title` PT-BR + annotations. `tools/list` em JSON Schema Draft 7 (Quick). `plan_day` lê; `apply_day_plan` grava. `list_activities` padrão pendentes + `total`/`truncated`/`counts`. Oportunidades: `list_opportunity_folders`, `create_opportunity_folder`, `create_file_in_folder`, `get_document_outline`, `read_section`, `upsert_section`, `append_to_document`, `delete_section`, `import_transcript`, `register_delivery`, `get_proposal_template`, `link_opportunity_folder`. Agente `propostas`. |
+| MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Porta de entrada: tool **`cortex`**. Tools com `title` PT-BR + annotations. `tools/list` em JSON Schema Draft 7 (Quick); escritas só string (Action Review). `plan_day` lê; `apply_day_plan` grava. `list_activities` padrão pendentes + `total`/`truncated`/`counts`. Oportunidades: `list_opportunity_folders`, `create_opportunity_folder` (só `name` → pasta + Contexto + Proposal Doc), `create_file_in_folder`, `get_document_outline`, `read_section`, `upsert_section`, `append_to_document`, `delete_section`, `import_transcript`, `register_delivery`, `get_proposal_template`, `link_opportunity_folder`. Agente `propostas`. |
 | Oportunidades | Espaço `key=opportunities`. UI: Nova oportunidade, Nova transcrição, Importar transcrição, Entregas (iframe sandbox), badges de kind, chip do funil, toggle Templates. `/comercial` lista o funil e os documentos da pasta vinculada. Selo “editado pelo Quick”. Agente `propostas`. Templates HTML em `templates/propostas/`. |
 | Cortex | slug `cortex`, `isOrchestrator=true`, id `cortex-orchestrator`. Roteador determinístico (sem LLM). 4 camadas de prompt. Roteia propostas/oportunidade/transcrição → `propostas`. |
 | Agente de atividades | slug `gestao-tempo`, nome **Gestor de Atividades**. 7 camadas de prompt (inclui Comportamental), 12 docs + 5 templates, prompt publicado. `routing` preenchido. |

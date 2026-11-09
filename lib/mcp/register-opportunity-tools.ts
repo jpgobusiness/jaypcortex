@@ -62,12 +62,9 @@ export function registerOpportunityTools(
   }));
 
   server.registerTool("create_opportunity_folder", {
-    ...writeMeta("Nova oportunidade", { idempotent: true }),
-    description: "Cria pasta no espaço Oportunidades + Contexto + Proposal Doc a partir dos templates. Idempotente pelo nome.",
-    inputSchema: z.object({
-      name: z.string(),
-      opportunity_id: z.string().optional(),
-    }),
+    ...writeMeta("Nova oportunidade"),
+    description: "Cria pasta no espaço Oportunidades + Contexto + Proposal Doc a partir dos templates. Idempotente pelo nome. Informe só o nome do cliente (ex.: TAMURA).",
+    inputSchema: z.object({ name: z.string() }).passthrough(),
   }, async (args) => wrap(async () => {
     assertScope(ctx.scopes, "write");
     return createOpportunityFolder({
@@ -78,15 +75,13 @@ export function registerOpportunityTools(
   }));
 
   server.registerTool("create_file_in_folder", {
-    ...writeMeta("Criar arquivo na pasta", { idempotent: true }),
-    description: "Cria arquivo na pasta. template_id copia TipTap direto, sem markdown. Idempotente por título na pasta.",
+    ...writeMeta("Criar arquivo na pasta"),
+    description: "Cria arquivo na pasta. kind: contexto, proposal_doc, transcricao, nota. Idempotente por título na pasta.",
     inputSchema: z.object({
       folder_id: z.string(),
       title: z.string(),
       kind: z.string(),
-      markdown: z.string().optional(),
-      template_id: z.string().optional(),
-    }),
+    }).passthrough(),
   }, async (args) => wrap(async () => {
     assertScope(ctx.scopes, "write");
     return createFileInFolder({
@@ -126,15 +121,13 @@ export function registerOpportunityTools(
   }));
 
   server.registerTool("upsert_section", {
-    ...writeMeta("Gravar seção", { idempotent: true }),
-    description: "Substitui ou cria uma seção no JSON TipTap (só o trecho vira markdown). expected_hash divergente → conflict.",
+    ...writeMeta("Gravar seção"),
+    description: "Substitui ou cria uma seção no JSON TipTap (só o trecho vira markdown).",
     inputSchema: z.object({
       file_id: z.string(),
       heading: z.string(),
       markdown: z.string(),
-      after_heading: z.string().optional(),
-      expected_hash: z.string().optional(),
-    }),
+    }).passthrough(),
   }, async (args) => wrap(async () => {
     assertScope(ctx.scopes, "write");
     return upsertDocumentSection({
@@ -148,11 +141,11 @@ export function registerOpportunityTools(
   }));
 
   server.registerTool("link_opportunity_folder", {
-    ...writeMeta("Vincular ao funil", { idempotent: true }),
-    description: "Liga ou desliga a pasta a uma Opportunity do funil. opportunity_id vazio desvincula.",
+    ...writeMeta("Vincular ao funil"),
+    description: "Liga a pasta a uma Opportunity do funil. opportunity_id vazio desvincula.",
     inputSchema: z.object({
       folder_id: z.string(),
-      opportunity_id: z.string().optional(),
+      opportunity_id: z.string(),
     }),
   }, async (args) => wrap(async () => {
     assertScope(ctx.scopes, "write");
@@ -165,12 +158,11 @@ export function registerOpportunityTools(
 
   server.registerTool("append_to_document", {
     ...writeMeta("Acrescentar ao documento"),
-    description: "Acrescenta markdown no fim do arquivo. expected_hash divergente → conflict. Não reconverte o doc inteiro.",
+    description: "Acrescenta markdown no fim do arquivo. Não reconverte o doc inteiro.",
     inputSchema: z.object({
       file_id: z.string(),
       markdown: z.string(),
-      expected_hash: z.string().optional(),
-    }),
+    }).passthrough(),
   }, async (args) => wrap(async () => {
     assertScope(ctx.scopes, "write");
     return appendToFile({
@@ -183,12 +175,11 @@ export function registerOpportunityTools(
 
   server.registerTool("delete_section", {
     ...writeMeta("Apagar seção", { destructive: true }),
-    description: "Remove uma seção pelo heading. Heading inexistente → not_found (nada gravado). Hash divergente → conflict. Cria revisão restaurável.",
+    description: "Remove uma seção pelo heading. Heading inexistente → not_found. Cria revisão restaurável.",
     inputSchema: z.object({
       file_id: z.string(),
       heading: z.string(),
-      expected_hash: z.string(),
-    }),
+    }).passthrough(),
   }, async (args) => wrap(async () => {
     assertScope(ctx.scopes, "write");
     return deleteDocumentSection({
@@ -200,13 +191,12 @@ export function registerOpportunityTools(
   }));
 
   server.registerTool("import_transcript", {
-    ...writeMeta("Importar transcrição", { idempotent: true }),
-    description: "Grava texto já transcrito como kind=transcricao (TipTap + índice). Acima de 5 MB divide em (parte N). Áudio não entra no servidor.",
+    ...writeMeta("Importar transcrição"),
+    description: "Grava texto já transcrito como kind=transcricao. Acima de 5 MB divide em (parte N).",
     inputSchema: z.object({
       folder_id: z.string(),
-      title: z.string().optional(),
       text: z.string(),
-    }),
+    }).passthrough(),
   }, async (args) => wrap(async () => {
     assertScope(ctx.scopes, "write");
     return importTranscript({
@@ -224,7 +214,7 @@ export function registerOpportunityTools(
       folder_id: z.string(),
       name: z.string(),
       html: z.string(),
-    }),
+    }).passthrough(),
   }, async (args) => wrap(async () => {
     assertScope(ctx.scopes, "write");
     return registerDelivery({

@@ -374,7 +374,7 @@ export function registerMcpTools(
       agent: z.string(),
       rationale: z.string(),
       model: z.string().optional(),
-      temperature: z.number().optional(),
+      temperature: z.string().optional(),
       description: z.string().optional(),
     }),
   }, async (args) => {
@@ -389,7 +389,10 @@ export function registerMcpTools(
       rationale: String(args.rationale),
       content: {
         model: args.model ? String(args.model) : undefined,
-        temperature: typeof args.temperature === "number" ? args.temperature : undefined,
+        temperature: (() => {
+          const n = Number(args.temperature);
+          return Number.isFinite(n) ? n : undefined;
+        })(),
         description: args.description ? String(args.description) : undefined,
       },
       ...actor,
@@ -400,10 +403,10 @@ export function registerMcpTools(
   server.registerTool("apply_proposal", {
     ...writeMeta("Aplicar proposta", { idempotent: false }),
     description: "Aplica uma proposta pendente (checa conflito, reindexa, revisão)",
-    inputSchema: z.object({ id: z.string(), publish: z.boolean().optional() }),
+    inputSchema: z.object({ id: z.string(), publish: z.string().optional() }),
   }, async (args) => {
     assertScope(ctx.scopes, "write");
-    const row = await applyProposal({ id: String(args.id), appliedBy: ctx.profileId, publish: Boolean(args.publish) });
+    const row = await applyProposal({ id: String(args.id), appliedBy: ctx.profileId, publish: args.publish === "true" || args.publish === "1" || args.publish === true });
     await writeAudit({ actorId: ctx.profileId, actorType: "mcp", tokenId: ctx.tokenId, action: "apply_proposal", entity: "ChangeProposal", entityId: row.id });
     return text(row);
   });
@@ -441,7 +444,7 @@ export function registerMcpTools(
       markdown: z.string(),
       kind: z.string().optional(),
       folder: z.string().optional(),
-    }),
+    }).passthrough(),
   }, async (args) => {
     assertScope(ctx.scopes, "write");
     const id = await resolveAgentId(String(args.agent));
@@ -473,7 +476,7 @@ export function registerMcpTools(
   server.registerTool("update_document", {
     ...writeMeta("Atualizar documento", { idempotent: true }),
     description: "Atualiza arquivo já aplicado",
-    inputSchema: z.object({ file_id: z.string(), markdown: z.string(), title: z.string().optional() }),
+    inputSchema: z.object({ file_id: z.string(), markdown: z.string(), title: z.string().optional() }).passthrough(),
   }, async (args) => {
     assertScope(ctx.scopes, "write");
     const saved = await upsertFileContent({
@@ -523,7 +526,7 @@ export function registerMcpTools(
       slug: z.string().optional(),
       role: z.string().optional(),
       description: z.string().optional(),
-    }),
+    }).passthrough(),
   }, async (args) => {
     assertScope(ctx.scopes, "write");
     const result = await createAgentWithRoom({

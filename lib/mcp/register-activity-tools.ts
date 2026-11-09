@@ -35,7 +35,7 @@ import { getDailyBriefing, getWeeklyReview, planDay } from "@/lib/briefing/brief
 import { parseDatePhrase } from "@/lib/activities/dates";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
 import { busyBlocksJson, createActivitiesBulkShape, createActivityShape, idOrQueryShape, queuePosition } from "@/lib/mcp/activity-schemas";
-import { parseBusyBlocks } from "@/lib/mcp/quick-compat";
+import { asBool, asNumber, asStringList, parseBusyBlocks } from "@/lib/mcp/quick-compat";
 import { readMeta, writeMeta, type ToolServer } from "@/lib/mcp/annotations";
 
 function text(data: unknown) {
@@ -352,11 +352,11 @@ export function registerActivityTools(
   act("complete_activity", "Concluir tarefa", "Conclui, sai da fila, gera próxima se recorrente", async (id) => (await completeActivity(id, actorOf(ctx))).presented, {}, { idempotent: true });
   act("reopen_activity", "Reabrir tarefa", "Reabre para pendente", async (id) => (await reopenActivity(id, actorOf(ctx))).presented, {}, { idempotent: true });
   act("set_activity_status", "Mudar status", "Muda status por key", async (id, args) => (await setActivityStatus(id, String(args.status), actorOf(ctx))).presented, { status: z.string() }, { idempotent: true });
-  act("delete_activity", "Lixeira", "Lixeira (soft delete). Exige confirm=true.", async (id, args) => (await softDelete(id, actorOf(ctx), args.confirm === true)).presented, { confirm: z.boolean().optional() }, { destructive: true, idempotent: true });
+  act("delete_activity", "Lixeira", "Lixeira (soft delete). Exige confirm=true.", async (id, args) => (await softDelete(id, actorOf(ctx), asBool(args.confirm))).presented, { confirm: z.string().optional() }, { destructive: true, idempotent: true });
   act("restore_activity", "Restaurar tarefa", "Tira da lixeira", async (id) => (await restoreActivity(id, actorOf(ctx))).presented, {}, { idempotent: true });
-  act("queue_activity", "Colocar na fila", "Coloca na fila", async (id, args) => queueAdd([id], typeof args.position === "number" ? args.position : undefined, actorOf(ctx)), { position: z.number().optional() }, { idempotent: true });
+  act("queue_activity", "Colocar na fila", "Coloca na fila", async (id, args) => queueAdd([id], asNumber(args.position), actorOf(ctx)), { position: z.string().optional() }, { idempotent: true });
   act("unqueue_activity", "Tirar da fila", "Tira da fila", async (id) => queueRemove(id, actorOf(ctx)), {}, { idempotent: true });
-  act("move_in_queue", "Mover na fila", "Move para a posição (1 = topo)", async (id, args) => queueMove(id, Number(args.position || 1), actorOf(ctx)), { position: z.number() }, { idempotent: true });
+  act("move_in_queue", "Mover na fila", "Move para a posição (1 = topo)", async (id, args) => queueMove(id, asNumber(args.position) ?? 1, actorOf(ctx)), { position: z.string() }, { idempotent: true });
   act("reschedule_activity", "Reagendar", "Muda prazo e/ou bloco de tempo", async (id, args) => (await rescheduleActivity(id, {
     dueDate: args.due ? String(args.due) : args.due_date ? String(args.due_date) : undefined,
     scheduledStart: args.scheduled_start ? String(args.scheduled_start) : undefined,
@@ -376,10 +376,10 @@ export function registerActivityTools(
   server.registerTool("reorder_queue", {
     ...writeMeta("Reordenar fila", { idempotent: true }),
     description: "Reordena a fila inteira pelos ids",
-    inputSchema: z.object({ ordered_ids: z.array(z.string()) }),
+    inputSchema: z.object({ ordered_ids: z.string() }),
   }, async (args) => {
     assertScope(ctx.scopes, "write");
-    const ids = Array.isArray(args.ordered_ids) ? args.ordered_ids.map(String) : [];
+    const ids = asStringList(args.ordered_ids);
     return wrap(() => queueReorder(ids, actorOf(ctx)));
   });
 
@@ -413,10 +413,11 @@ export function registerActivityTools(
   server.registerTool("purge_deleted_activities", {
     ...writeMeta("Purgar lixeira", { destructive: true, idempotent: true }),
     description: "Apaga de vez tarefas da lixeira (admin). Sem ids, purga toda a lixeira.",
-    inputSchema: z.object({ ids: z.array(z.string()).optional() }),
+    inputSchema: z.object({ ids: z.string().optional() }),
   }, async (args) => {
     assertScope(ctx.scopes, "admin");
-    const ids = Array.isArray(args.ids) ? args.ids.map(String) : undefined;
+    const parsed = asStringList(args.ids);
+    const ids = parsed.length ? parsed : undefined;
     return wrap(() => purgeDeleted(ids, actorOf(ctx)));
   });
 
