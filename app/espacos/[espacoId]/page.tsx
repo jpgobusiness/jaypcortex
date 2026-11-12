@@ -16,6 +16,7 @@ import {
 import PageHeader from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/form";
 import FolderDeliveries from "@/components/workspaces/FolderDeliveries";
+import WorkspaceAttachments from "@/components/workspaces/WorkspaceAttachments";
 import {
   HeaderSubtitleInput,
   HeaderTitleInput,
@@ -137,7 +138,7 @@ export default function EspacoDashboardPage() {
         folderId,
       });
       await reload();
-      router.push(fileHref(current.id, file.id));
+      router.push(fileHref(current.id, file.id, { editar: true }));
     } catch (cause) {
       alert(cause instanceof Error ? cause.message : "Erro ao criar o arquivo");
       setCreatingFile(false);
@@ -187,7 +188,7 @@ export default function EspacoDashboardPage() {
         kind: "transcricao",
       });
       await reload();
-      router.push(fileHref(current.id, file.id));
+      router.push(fileHref(current.id, file.id, { editar: true }));
     } catch (cause) {
       alert(cause instanceof Error ? cause.message : "Erro ao criar a transcrição");
       setCreatingFile(false);
@@ -341,8 +342,8 @@ export default function EspacoDashboardPage() {
               Este espaço está vazio
             </h2>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Crie pastas para separar os assuntos e arquivos para escrever o
-              conteúdo.
+              Crie pastas para separar os assuntos, arquivos para escrever o
+              conteúdo, ou envie um anexo abaixo.
             </p>
             <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
               {isOpportunities && (
@@ -461,6 +462,8 @@ export default function EspacoDashboardPage() {
             )}
           </>
         )}
+
+        <WorkspaceAttachments workspaceId={current.id} disabled={creatingFile} />
       </div>
 
       <NameModal
@@ -628,6 +631,14 @@ function FolderCard({
           ))}
         </ul>
       )}
+      <div className="relative z-10">
+        <WorkspaceAttachments
+          workspaceId={folder.workspaceId}
+          folderId={folder.id}
+          compact
+          disabled={disabled}
+        />
+      </div>
       {isOpportunities && (
         <div className="relative z-10">
           <FolderDeliveries folderId={folder.id} disabled={disabled} />

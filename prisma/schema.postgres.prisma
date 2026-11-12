@@ -472,6 +472,7 @@ model Workspace {
   updatedAt   DateTime          @updatedAt
   folders     WorkspaceFolder[]
   files       WorkspaceFile[]
+  assets      FolderAsset[]
   agent       Agent? // preenchido quando o espaço é a sala de um agente
 
   @@index([order])
@@ -496,19 +497,23 @@ model WorkspaceFolder {
 }
 
 /// Arquivo no Storage (HTML de entrega, anexo, áudio). Binário nunca vai no Postgres.
+/// `folderId` nulo = anexo solto no espaço.
 model FolderAsset {
-  id        String          @id @default(cuid())
-  folderId  String
-  folder    WorkspaceFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  kind      String
-  name      String
-  mimeType  String
-  size      Int
-  path      String
-  createdBy String?         @db.Uuid
-  source    String          @default("ui")
-  createdAt DateTime        @default(now())
+  id          String           @id @default(cuid())
+  workspaceId String
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folderId    String?
+  folder      WorkspaceFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  kind        String
+  name        String
+  mimeType    String
+  size        Int
+  path        String
+  createdBy   String?          @db.Uuid
+  source      String           @default("ui")
+  createdAt   DateTime         @default(now())
 
+  @@index([workspaceId, createdAt])
   @@index([folderId, createdAt])
   @@index([kind])
 }

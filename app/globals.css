@@ -170,6 +170,9 @@ body {
   color: var(--foreground);
   overflow-wrap: anywhere;
 }
+.tiptap-content[contenteditable="false"] {
+  cursor: default;
+}
 .tiptap-content > * + * {
   margin-top: 0.75em;
 }

@@ -173,7 +173,8 @@ export type WorkspaceFolder = {
 
 export type FolderAsset = {
   id: string;
-  folderId: string;
+  workspaceId: string;
+  folderId: string | null;
   kind: string;
   name: string;
   mimeType: string;

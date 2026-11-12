@@ -135,7 +135,7 @@ export default function KnowledgePanel({
       setItems(result.items);
       onChanged();
       await reloadWorkspaces();
-      router.push(fileHref(agent.room.id, result.fileId));
+      router.push(fileHref(agent.room.id, result.fileId, { editar: true }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Erro ao criar o documento");
       setBusy(null);

@@ -39,8 +39,13 @@ export function isAgentRoom(workspace: { name?: string; agent?: unknown | null }
   return /^sala de /i.test((workspace.name ?? "").trim());
 }
 
-export function fileHref(workspaceId: string, fileId: string) {
-  return `/espacos/${workspaceId}/arquivos/${fileId}`;
+export function fileHref(
+  workspaceId: string,
+  fileId: string,
+  opts?: { editar?: boolean }
+) {
+  const path = `/espacos/${workspaceId}/arquivos/${fileId}`;
+  return opts?.editar ? `${path}?editar=1` : path;
 }
 
 export function folderHref(workspaceId: string, folderId: string) {

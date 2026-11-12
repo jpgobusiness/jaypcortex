@@ -7,6 +7,7 @@ import { Clock, FilePlus, FileText, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/form";
 import FolderDeliveries from "@/components/workspaces/FolderDeliveries";
+import WorkspaceAttachments from "@/components/workspaces/WorkspaceAttachments";
 import { HeaderTitleInput } from "@/components/workspaces/IdentityInputs";
 import OpportunityChip from "@/components/workspaces/OpportunityChip";
 import WorkspaceCrumbs from "@/components/workspaces/WorkspaceCrumbs";
@@ -90,7 +91,7 @@ export default function PastaPage() {
         folderId: currentFolder.id,
       });
       await reload();
-      router.push(fileHref(current.id, file.id));
+      router.push(fileHref(current.id, file.id, { editar: true }));
     } catch (cause) {
       alert(cause instanceof Error ? cause.message : "Erro ao criar o arquivo");
       setCreatingFile(false);
@@ -108,7 +109,7 @@ export default function PastaPage() {
         kind: "transcricao",
       });
       await reload();
-      router.push(fileHref(current.id, file.id));
+      router.push(fileHref(current.id, file.id, { editar: true }));
     } catch (cause) {
       alert(cause instanceof Error ? cause.message : "Erro ao criar a transcrição");
       setCreatingFile(false);
@@ -294,7 +295,7 @@ export default function PastaPage() {
                 Esta pasta está vazia
               </h3>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Crie um arquivo para começar a escrever.
+                Crie um arquivo para começar a escrever, ou envie um anexo abaixo.
               </p>
               <div className="mt-5 flex justify-center">
                 <Button onClick={() => void createFile()} disabled={creatingFile}>
@@ -306,6 +307,12 @@ export default function PastaPage() {
             <WorkspaceFileList files={currentFolder.files} onDelete={deleteFile} />
           )}
         </section>
+
+        <WorkspaceAttachments
+          workspaceId={current.id}
+          folderId={currentFolder.id}
+          disabled={creatingFile}
+        />
 
         {isOpportunities && (
           <section className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">

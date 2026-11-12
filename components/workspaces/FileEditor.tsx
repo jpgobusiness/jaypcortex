@@ -11,6 +11,7 @@ import type { EditorDocument } from "@/lib/types";
 type Props = {
   initialTitle: string;
   initialContent: EditorDocument | null;
+  editable: boolean;
   autoFocusTitle?: boolean;
   onTitleChange: (title: string) => void;
   onContentChange: (doc: JSONContent) => void;
@@ -23,16 +24,19 @@ type Props = {
 function FileEditor({
   initialTitle,
   initialContent,
+  editable,
   autoFocusTitle = false,
   onTitleChange,
   onContentChange,
 }: Props) {
   const onContentChangeRef = useRef(onContentChange);
+  const skipFirstUpdate = useRef(true);
   useEffect(() => {
     onContentChangeRef.current = onContentChange;
   }, [onContentChange]);
 
   const editor = useEditor({
+    editable,
     extensions: [
       ...documentExtensions,
       Placeholder.configure({
@@ -51,19 +55,37 @@ function FileEditor({
       },
     },
     onUpdate: ({ editor: current }) => {
+      if (!current.isEditable) return;
+      // O primeiro update é o TipTap montando o doc; não marca como alteração.
+      if (skipFirstUpdate.current) {
+        skipFirstUpdate.current = false;
+        return;
+      }
       const doc = current.getJSON();
       // Evita atualizar estado do React no meio de uma transação do editor.
       queueMicrotask(() => onContentChangeRef.current(doc));
     },
   });
 
+  useEffect(() => {
+    editor?.setEditable(editable);
+  }, [editor, editable]);
+
+  useEffect(() => {
+    if (!editor || editable) return;
+    const next = JSON.stringify(initialContent ?? { type: "doc", content: [{ type: "paragraph" }] });
+    const current = JSON.stringify(editor.getJSON());
+    if (next !== current) editor.commands.setContent(initialContent);
+  }, [editor, editable, initialContent]);
+
   return (
     <div className="flex flex-1 flex-col">
-      <EditorToolbar editor={editor} />
+      {editable && <EditorToolbar editor={editor} />}
       <div className="mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-10 sm:px-8 sm:pt-16">
         <TitleField
           initialValue={initialTitle}
-          autoFocus={autoFocusTitle}
+          autoFocus={editable && autoFocusTitle}
+          readOnly={!editable}
           onChange={onTitleChange}
           onEnter={() => editor?.commands.focus("start")}
         />
@@ -78,15 +100,21 @@ export default memo(FileEditor);
 function TitleField({
   initialValue,
   autoFocus,
+  readOnly,
   onChange,
   onEnter,
 }: {
   initialValue: string;
   autoFocus: boolean;
+  readOnly: boolean;
   onChange: (value: string) => void;
   onEnter: () => void;
 }) {
   const [value, setValue] = useState(initialValue);
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
 
   return (
     <textarea
@@ -95,8 +123,10 @@ function TitleField({
       maxLength={TITLE_MAX_LENGTH}
       placeholder={DEFAULT_FILE_TITLE}
       aria-label="Título do arquivo"
+      readOnly={readOnly}
       autoFocus={autoFocus}
       onChange={(event) => {
+        if (readOnly) return;
         // Título é uma linha só: quebras viram espaço (ex.: ao colar).
         const next = event.target.value.replace(/\s*\n+\s*/g, " ");
         setValue(next);
@@ -105,10 +135,12 @@ function TitleField({
       onKeyDown={(event) => {
         if (event.key === "Enter") {
           event.preventDefault();
-          onEnter();
+          if (!readOnly) onEnter();
         }
       }}
-      className="field-sizing-content w-full resize-none bg-transparent text-3xl font-bold leading-tight text-[var(--foreground)] outline-none placeholder:text-slate-300 sm:text-4xl"
+      className={`field-sizing-content w-full resize-none bg-transparent text-3xl font-bold leading-tight text-[var(--foreground)] outline-none placeholder:text-slate-300 sm:text-4xl ${
+        readOnly ? "cursor-default" : ""
+      }`}
     />
   );
 }

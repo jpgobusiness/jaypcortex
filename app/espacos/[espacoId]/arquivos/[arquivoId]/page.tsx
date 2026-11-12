@@ -9,9 +9,11 @@ import {
   CircleAlert,
   CircleCheck,
   LoaderCircle,
+  Pencil,
   Trash2,
 } from "lucide-react";
 import FileEditor from "@/components/workspaces/FileEditor";
+import { Button } from "@/components/ui/form";
 import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/fetcher";
 import {
@@ -24,22 +26,14 @@ import {
 import type { WorkspaceFileDetail, WorkspaceFileSummary } from "@/lib/types";
 import { DOCUMENT_KINDS, KIND_LABELS, type DocumentKind } from "@/lib/knowledge/kinds";
 
-/** Espera depois da última tecla antes de salvar. */
-const SAVE_DELAY_MS = 800;
-
-type Patch = { title?: string; content?: JSONContent };
-type SaveStatus = "saved" | "pending" | "saving" | "error";
-
-function hasChanges(patch: Patch) {
-  return patch.title !== undefined || patch.content !== undefined;
-}
+type SaveStatus = "saved" | "saving" | "error";
 
 export default function ArquivoPage() {
   const { espacoId, arquivoId } = useParams<{
     espacoId: string;
     arquivoId: string;
   }>();
-  // A key garante estado novo (e salvamento do anterior) ao trocar de arquivo.
+  // A key garante estado novo ao trocar de arquivo.
   return <FilePage key={arquivoId} workspaceId={espacoId} fileId={arquivoId} />;
 }
 
@@ -52,16 +46,24 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
   const [folderId, setFolderId] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
+  const [mode, setMode] = useState<"view" | "edit">("view");
+  const [dirty, setDirty] = useState(false);
+  const [status, setStatus] = useState<SaveStatus>("saved");
+  const [editorNonce, setEditorNonce] = useState(0);
+  const draftContent = useRef<JSONContent | null>(null);
+  const savedAtRef = useRef<string | null>(null);
+  const editing = mode === "edit";
 
-  const handleSaved = useCallback(
-    (saved: WorkspaceFileSummary, patch: Patch) => {
-      setSavedAt(saved.updatedAt);
-      // O título aparece no menu e no dashboard.
-      if (patch.title !== undefined) void reload();
-    },
-    [reload]
-  );
-  const { status, schedule, flush, discard } = useAutosave(fileId, handleSaved);
+  useEffect(() => {
+    savedAtRef.current = savedAt;
+  }, [savedAt]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("editar") !== "1") return;
+    setMode("edit");
+    router.replace(fileHref(workspaceId, fileId), { scroll: false });
+  }, [fileId, workspaceId, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +78,7 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
         setTitle(data.title === DEFAULT_FILE_TITLE ? "" : data.title);
         setFolderId(data.folderId);
         setSavedAt(data.updatedAt);
+        draftContent.current = data.content;
       },
       (cause: unknown) => {
         if (cancelled) return;
@@ -89,25 +92,102 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
     };
   }, [fileId, workspaceId, router]);
 
-  const handleTitleChange = useCallback(
-    (value: string) => {
-      setTitle(value);
-      schedule({ title: value });
-    },
-    [schedule]
-  );
-  const handleContentChange = useCallback(
-    (doc: JSONContent) => schedule({ content: doc }),
-    [schedule]
-  );
+  // Na visualização, puxa o que o MCP gravou sem precisar recarregar a página.
+  useEffect(() => {
+    if (mode !== "view") return;
+    const tick = window.setInterval(() => {
+      void apiGet<WorkspaceFileDetail>(`/api/workspaces/files/${fileId}`).then((data) => {
+        if (data.updatedAt === savedAtRef.current) return;
+        setFile(data);
+        setTitle(data.title === DEFAULT_FILE_TITLE ? "" : data.title);
+        setFolderId(data.folderId);
+        setSavedAt(data.updatedAt);
+        draftContent.current = data.content;
+        setEditorNonce((n) => n + 1);
+        void reload();
+      });
+    }, 6000);
+    return () => window.clearInterval(tick);
+  }, [mode, fileId, reload]);
+
+  const handleTitleChange = useCallback((value: string) => {
+    setTitle(value);
+    setDirty(true);
+  }, []);
+  const handleContentChange = useCallback((doc: JSONContent) => {
+    draftContent.current = doc;
+    setDirty(true);
+  }, []);
 
   const workspace = workspaces.find((item) => item.id === workspaceId) ?? null;
   const folder = workspace?.folders.find((item) => item.id === folderId) ?? null;
 
+  function startEdit() {
+    setMode("edit");
+    setDirty(false);
+    setStatus("saved");
+  }
+
+  function cancelEdit() {
+    if (dirty && !confirm("Descartar as alterações não salvas?")) return;
+    if (!file) return;
+    setTitle(file.title === DEFAULT_FILE_TITLE ? "" : file.title);
+    draftContent.current = file.content;
+    setDirty(false);
+    setStatus("saved");
+    setMode("view");
+    setEditorNonce((n) => n + 1);
+  }
+
+  async function save() {
+    setStatus("saving");
+    try {
+      const saved = await apiPatch<WorkspaceFileSummary>(`/api/workspaces/files/${fileId}`, {
+        title,
+        content: draftContent.current ?? file?.content,
+      });
+      setFile((current) =>
+        current
+          ? {
+              ...current,
+              ...saved,
+              content: (draftContent.current ?? current.content) as WorkspaceFileDetail["content"],
+            }
+          : current
+      );
+      setSavedAt(saved.updatedAt);
+      setDirty(false);
+      setStatus("saved");
+      setMode("view");
+      setEditorNonce((n) => n + 1);
+      await reload();
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        if (mode === "edit" && dirty && status !== "saving") void save();
+      }
+    }
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      if (!dirty) return;
+      event.preventDefault();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [mode, dirty, status, title, file, fileId, reload]);
+
   async function moveTo(nextFolderId: string | null) {
     setMoving(true);
     try {
-      await flush();
       const saved = await apiPatch<WorkspaceFileSummary>(
         `/api/workspaces/files/${fileId}`,
         { folderId: nextFolderId }
@@ -126,7 +206,6 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
     const name = title.trim() || DEFAULT_FILE_TITLE;
     if (!confirm(`Excluir o arquivo "${name}"?`)) return;
     try {
-      discard();
       await apiDelete(`/api/workspaces/files/${fileId}`);
       router.push(workspaceHref(workspaceId));
       await reload();
@@ -194,12 +273,38 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
         </nav>
 
         <div className="flex shrink-0 items-center gap-2">
-          <SaveIndicator status={status} savedAt={savedAt} onRetry={flush} />
+          <SaveIndicator
+            status={status}
+            savedAt={savedAt}
+            dirty={dirty}
+            editing={editing}
+            onRetry={() => void save()}
+          />
+          {editing ? (
+            <>
+              <Button type="button" variant="ghost" onClick={cancelEdit} className="h-9 px-3 md:h-8">
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void save()}
+                disabled={status === "saving" || !dirty}
+                className="h-9 px-3 md:h-8"
+              >
+                {status === "saving" ? "Salvando..." : "Salvar"}
+              </Button>
+            </>
+          ) : (
+            <Button type="button" onClick={startEdit} className="h-9 px-3 md:h-8">
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </Button>
+          )}
           {workspace && (
             <select
               value={folderId ?? ""}
               onChange={(event) => moveTo(event.target.value || null)}
-              disabled={moving}
+              disabled={moving || editing}
               aria-label="Pasta do arquivo"
               title="Mover para outra pasta"
               className="h-9 max-w-44 rounded-lg border border-[var(--border)] bg-white px-2 text-xs text-[var(--foreground)] outline-none focus:border-[var(--brand)] md:h-8"
@@ -223,13 +328,19 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
           </button>
         </div>
       </div>
-      <FileMetaBar fileId={fileId} file={file} onPatched={(saved) => setSavedAt(saved.updatedAt)} />
+      <FileMetaBar
+        fileId={fileId}
+        file={file}
+        locked={!editing}
+        onPatched={(saved) => setSavedAt(saved.updatedAt)}
+      />
 
-      {/* Props estáveis: o editor não renderiza de novo a cada tecla do título. */}
       <FileEditor
-        initialTitle={file.title === DEFAULT_FILE_TITLE ? "" : file.title}
-        initialContent={file.content}
-        autoFocusTitle={file.title === DEFAULT_FILE_TITLE && !file.content}
+        key={`${fileId}-${mode}-${editorNonce}`}
+        initialTitle={title}
+        initialContent={(draftContent.current ?? file.content) as WorkspaceFileDetail["content"]}
+        editable={editing}
+        autoFocusTitle={editing && !title}
         onTitleChange={handleTitleChange}
         onContentChange={handleContentChange}
       />
@@ -240,10 +351,12 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
 function FileMetaBar({
   fileId,
   file,
+  locked,
   onPatched,
 }: {
   fileId: string;
   file: WorkspaceFileDetail & { kind?: string; tags?: string[]; indexStatus?: string; source?: string };
+  locked: boolean;
   onPatched: (saved: WorkspaceFileSummary) => void;
 }) {
   const [kind, setKind] = useState(file.kind ?? "contexto");
@@ -252,7 +365,13 @@ function FileMetaBar({
   const [showHistory, setShowHistory] = useState(false);
   const editedByQuick = file.source === "mcp";
 
+  useEffect(() => {
+    setKind(file.kind ?? "contexto");
+    setTags((file.tags ?? []).join(", "));
+  }, [file.kind, file.tags, file.updatedAt]);
+
   async function saveMeta() {
+    if (locked) return;
     const saved = await apiPatch<WorkspaceFileSummary>(`/api/workspaces/files/${fileId}`, {
       kind,
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
@@ -277,9 +396,10 @@ function FileMetaBar({
     <div className="flex flex-col gap-2 border-b border-[var(--border)] bg-[#fafafa] px-4 py-2 text-xs sm:flex-row sm:items-center sm:px-6">
       <select
         value={kind}
+        disabled={locked}
         onChange={(e) => setKind(e.target.value)}
         onBlur={() => void saveMeta()}
-        className="h-8 rounded-md border border-[var(--border)] bg-white px-2"
+        className="h-8 rounded-md border border-[var(--border)] bg-white px-2 disabled:cursor-default disabled:bg-[#fafafa]"
       >
         {DOCUMENT_KINDS.map((k) => (
           <option key={k} value={k}>{KIND_LABELS[k as DocumentKind]}</option>
@@ -287,10 +407,11 @@ function FileMetaBar({
       </select>
       <input
         value={tags}
+        readOnly={locked}
         onChange={(e) => setTags(e.target.value)}
         onBlur={() => void saveMeta()}
         placeholder="tags, separadas por vírgula"
-        className="h-8 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-white px-2"
+        className="h-8 min-w-0 flex-1 rounded-md border border-[var(--border)] bg-white px-2 read-only:cursor-default read-only:bg-[#fafafa]"
       />
       <span className="text-[var(--muted)]">
         {file.indexStatus ?? "pending"} · {file.source ?? "ui"}
@@ -329,10 +450,14 @@ function FileMetaBar({
 function SaveIndicator({
   status,
   savedAt,
+  dirty,
+  editing,
   onRetry,
 }: {
   status: SaveStatus;
   savedAt: string | null;
+  dirty: boolean;
+  editing: boolean;
   onRetry: () => void;
 }) {
   if (status === "error") {
@@ -346,110 +471,24 @@ function SaveIndicator({
       </button>
     );
   }
-  if (status === "saving" || status === "pending") {
+  if (status === "saving") {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)]">
         <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> Salvando...
       </span>
     );
   }
+  if (editing && dirty) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700">
+        Não salvo
+      </span>
+    );
+  }
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-[var(--muted)]">
       <CircleCheck className="h-3.5 w-3.5 text-emerald-600" />
-      {savedAt ? `Salvo ${formatDateTime(savedAt)}` : "Salvo"}
+      {savedAt ? `Salvo ${formatDateTime(savedAt)}` : "Salvo na base"}
     </span>
   );
-}
-
-/**
- * Salva título e conteúdo sozinho, um pouco depois da última alteração.
- * As gravações vão em fila, e o que faltar é salvo ao sair da página.
- */
-function useAutosave(
-  fileId: string,
-  onSaved: (saved: WorkspaceFileSummary, patch: Patch) => void
-) {
-  const [status, setStatus] = useState<SaveStatus>("saved");
-  const pending = useRef<Patch>({});
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const queue = useRef<Promise<void>>(Promise.resolve());
-  const inFlight = useRef(0);
-  const onSavedRef = useRef(onSaved);
-
-  useEffect(() => {
-    onSavedRef.current = onSaved;
-  }, [onSaved]);
-
-  const flush = useCallback(() => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    if (!hasChanges(pending.current)) return queue.current;
-
-    const patch = pending.current;
-    pending.current = {};
-    inFlight.current += 1;
-    queue.current = queue.current.then(async () => {
-      setStatus("saving");
-      try {
-        const saved = await apiPatch<WorkspaceFileSummary>(
-          `/api/workspaces/files/${fileId}`,
-          patch
-        );
-        onSavedRef.current(saved, patch);
-        setStatus(hasChanges(pending.current) ? "pending" : "saved");
-      } catch {
-        // Devolve o que não salvou; alterações mais novas têm prioridade.
-        pending.current = { ...patch, ...pending.current };
-        setStatus("error");
-      } finally {
-        inFlight.current -= 1;
-      }
-    });
-    return queue.current;
-  }, [fileId]);
-
-  const schedule = useCallback(
-    (patch: Patch) => {
-      pending.current = { ...pending.current, ...patch };
-      setStatus("pending");
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => void flush(), SAVE_DELAY_MS);
-    },
-    [flush]
-  );
-
-  /** Descarta o que estava pendente (ex.: o arquivo vai ser excluído). */
-  const discard = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-    pending.current = {};
-  }, []);
-
-  // Salva o que faltar ao sair da página.
-  useEffect(() => () => void flush(), [flush]);
-
-  // Ctrl/Cmd+S salva na hora; fechar a aba com algo pendente pede confirmação.
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        void flush();
-      }
-    }
-    function onBeforeUnload(event: BeforeUnloadEvent) {
-      if (!hasChanges(pending.current) && inFlight.current === 0) return;
-      void flush();
-      event.preventDefault();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("beforeunload", onBeforeUnload);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("beforeunload", onBeforeUnload);
-    };
-  }, [flush]);
-
-  return { status, schedule, flush, discard };
 }

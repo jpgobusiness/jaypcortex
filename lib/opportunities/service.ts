@@ -648,10 +648,12 @@ export async function importTranscriptUpload(opts: {
 }
 
 const ASSET_KINDS = new Set(["entrega", "anexo", "audio"]);
+export const MAX_ASSET_BYTES = 10 * 1024 * 1024;
 
 function publicAsset(row: {
   id: string;
-  folderId: string;
+  workspaceId: string;
+  folderId: string | null;
   kind: string;
   name: string;
   mimeType: string;
@@ -661,6 +663,7 @@ function publicAsset(row: {
 }) {
   return {
     id: row.id,
+    workspaceId: row.workspaceId,
     folderId: row.folderId,
     kind: row.kind,
     name: row.name,
@@ -672,7 +675,8 @@ function publicAsset(row: {
 }
 
 export async function storeFolderAsset(opts: {
-  folderId: string;
+  workspaceId?: string;
+  folderId?: string | null;
   kind: string;
   name: string;
   mimeType: string;
@@ -680,18 +684,33 @@ export async function storeFolderAsset(opts: {
   createdBy?: string | null;
   source?: string;
 }) {
-  const folder = await prisma.workspaceFolder.findUnique({ where: { id: opts.folderId } });
-  if (!folder) throw new Error("Pasta não encontrada");
+  if (opts.bytes.byteLength > MAX_ASSET_BYTES) {
+    throw new Error("O arquivo pode ter no máximo 10 MB");
+  }
+  let workspaceId = opts.workspaceId?.trim() || "";
+  let folderId = opts.folderId?.trim() || null;
+  if (folderId) {
+    const folder = await prisma.workspaceFolder.findUnique({ where: { id: folderId } });
+    if (!folder) throw new Error("Pasta não encontrada");
+    workspaceId = folder.workspaceId;
+  } else if (workspaceId) {
+    const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+    if (!workspace) throw new Error("Espaço não encontrado");
+    folderId = null;
+  } else {
+    throw new Error("Informe o espaço ou a pasta");
+  }
   const kind = ASSET_KINDS.has(opts.kind) ? opts.kind : "anexo";
   const name = opts.name.trim() || "arquivo";
   const folderKey = kind === "entrega" ? "entregas" : kind === "audio" ? "audio" : "anexos";
   const ext = name.includes(".") ? "" : kind === "entrega" ? ".html" : "";
-  const path = `${folder.id}/${folderKey}/${Date.now()}-${slugify(name)}${ext}`;
+  const path = `${workspaceId}/${folderId ?? "_raiz"}/${folderKey}/${Date.now()}-${slugify(name)}${ext}`;
   await uploadOpportunityObject({ path, bytes: opts.bytes, mimeType: opts.mimeType });
   try {
     const created = await prisma.folderAsset.create({
       data: {
-        folderId: folder.id,
+        workspaceId,
+        folderId,
         kind,
         name: kind === "entrega" && !name.toLowerCase().endsWith(".html") ? `${name}.html` : name,
         mimeType: opts.mimeType,
@@ -752,6 +771,16 @@ export async function listFolderAssets(folderId: string, kind?: string) {
   if (!folder) throw new Error("Pasta não encontrada");
   const rows = await prisma.folderAsset.findMany({
     where: { folderId, ...(kind ? { kind } : {}) },
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map(publicAsset);
+}
+
+export async function listWorkspaceRootAssets(workspaceId: string) {
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (!workspace) throw new Error("Espaço não encontrado");
+  const rows = await prisma.folderAsset.findMany({
+    where: { workspaceId, folderId: null },
     orderBy: { createdAt: "desc" },
   });
   return rows.map(publicAsset);

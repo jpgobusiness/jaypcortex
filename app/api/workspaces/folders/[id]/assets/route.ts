@@ -57,6 +57,9 @@ export async function POST(req: Request, { params }: Ctx) {
     }), 201);
   } catch (e) {
     if (e instanceof Error && e.message === "Pasta não encontrada") return notFound(e.message);
+    if (e instanceof Error && e.message === "O arquivo pode ter no máximo 10 MB") {
+      return badRequest(e.message);
+    }
     return serverError(e);
   }
 }
