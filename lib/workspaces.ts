@@ -2,6 +2,7 @@
 
 import type {
   EditorDocument,
+  FolderAsset,
   WorkspaceFileSummary,
   WorkspaceFolder,
   WorkspaceTree,
@@ -119,6 +120,16 @@ export function workspaceFiles(workspace: WorkspaceTree): WorkspaceFileSummary[]
     ...workspace.files,
     ...workspace.folders.flatMap((folder) => folder.files),
   ];
+}
+
+/** Anexos da pasta (sem entregas HTML). */
+export function folderAnexos(folder: WorkspaceFolder): FolderAsset[] {
+  return folder.assets ?? [];
+}
+
+/** Anexos soltos no espaço. */
+export function workspaceAnexos(workspace: WorkspaceTree): FolderAsset[] {
+  return workspace.assets ?? [];
 }
 
 /** Data da alteração mais recente no espaço (ele, as pastas ou os arquivos). */

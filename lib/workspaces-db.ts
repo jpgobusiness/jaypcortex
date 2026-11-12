@@ -19,7 +19,21 @@ export const fileSummarySelect = {
   updatedAt: true,
 } satisfies Prisma.WorkspaceFileSelect;
 
-/** Espaços com pastas e arquivos, na ordem do menu. */
+const assetSummarySelect = {
+  id: true,
+  workspaceId: true,
+  folderId: true,
+  kind: true,
+  name: true,
+  mimeType: true,
+  size: true,
+  source: true,
+  createdAt: true,
+} satisfies Prisma.FolderAssetSelect;
+
+const anexoWhere = { kind: { not: "entrega" } } as const;
+
+/** Espaços com pastas, arquivos e anexos, na ordem do menu. */
 export function findWorkspaceTrees(where?: Prisma.WorkspaceWhereInput) {
   return prisma.workspace.findMany({
     where,
@@ -41,12 +55,22 @@ export function findWorkspaceTrees(where?: Prisma.WorkspaceWhereInput) {
             select: fileSummarySelect,
             orderBy: [{ order: "asc" }, { createdAt: "asc" }],
           },
+          assets: {
+            where: anexoWhere,
+            select: assetSummarySelect,
+            orderBy: { createdAt: "desc" },
+          },
         },
       },
       files: {
         where: { folderId: null },
         select: fileSummarySelect,
         orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+      },
+      assets: {
+        where: { folderId: null, ...anexoWhere },
+        select: assetSummarySelect,
+        orderBy: { createdAt: "desc" },
       },
       // Preenchido quando o espaço é a sala de um agente do escritório.
       agent: { select: { id: true, name: true, isOrchestrator: true } },

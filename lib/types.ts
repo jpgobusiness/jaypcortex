@@ -159,18 +159,6 @@ export type WorkspaceFileSummary = {
   updatedAt: string;
 };
 
-export type WorkspaceFolder = {
-  id: string;
-  workspaceId: string;
-  name: string;
-  order: number;
-  opportunityId?: string | null;
-  opportunity?: FunnelOpportunityChip | null;
-  createdAt: string;
-  updatedAt: string;
-  files: WorkspaceFileSummary[];
-};
-
 export type FolderAsset = {
   id: string;
   workspaceId: string;
@@ -185,11 +173,26 @@ export type FolderAsset = {
   expires_at?: string;
 };
 
+export type WorkspaceFolder = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  order: number;
+  opportunityId?: string | null;
+  opportunity?: FunnelOpportunityChip | null;
+  createdAt: string;
+  updatedAt: string;
+  files: WorkspaceFileSummary[];
+  assets?: FolderAsset[];
+};
+
 /** Espaço com as pastas e os arquivos (sem o conteúdo dos arquivos). */
 export type WorkspaceTree = Workspace & {
   folders: WorkspaceFolder[];
   /** Arquivos que não estão em nenhuma pasta. */
   files: WorkspaceFileSummary[];
+  /** Anexos soltos no espaço (folderId nulo). */
+  assets?: FolderAsset[];
   /** Agente dono do espaço, quando o espaço é a sala dele no escritório. */
   agent?: { id: string; name: string; isOrchestrator: boolean } | null;
 };

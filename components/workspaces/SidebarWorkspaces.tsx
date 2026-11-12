@@ -11,14 +11,23 @@ import {
   Folder,
   FolderOpen,
   Layers,
+  Paperclip,
   Plus,
 } from "lucide-react";
 import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
 import WorkspaceBadge from "@/components/workspaces/WorkspaceBadge";
 import { officeHref } from "@/lib/agents";
 import { TEMPLATES_FOLDER } from "@/lib/opportunities/constants";
-import { fileHref, folderHref, isAgentRoom, workspaceHref } from "@/lib/workspaces";
+import {
+  fileHref,
+  folderAnexos,
+  folderHref,
+  isAgentRoom,
+  workspaceAnexos,
+  workspaceHref,
+} from "@/lib/workspaces";
 import type {
+  FolderAsset,
   WorkspaceFileSummary,
   WorkspaceFolder,
   WorkspaceTree,
@@ -253,7 +262,9 @@ function SpaceNode({
   const open = tree.isOpen(workspace.id);
   const active =
     activeWorkspaceId === workspace.id && !tree.activeFileId && !tree.activeFolderId;
-  const empty = workspace.folders.length === 0 && workspace.files.length === 0;
+  const anexos = workspaceAnexos(workspace);
+  const empty =
+    workspace.folders.length === 0 && workspace.files.length === 0 && anexos.length === 0;
 
   return (
     <div>
@@ -286,6 +297,9 @@ function SpaceNode({
           {workspace.files.map((file) => (
             <FileNode key={file.id} file={file} depth={depth + 1} {...tree} />
           ))}
+          {anexos.map((asset) => (
+            <AssetNode key={asset.id} asset={asset} depth={depth + 1} {...tree} />
+          ))}
           {empty && <EmptyRow depth={depth + 1}>Espaço vazio</EmptyRow>}
         </div>
       )}
@@ -301,6 +315,8 @@ function FolderNode({
   const open = tree.isOpen(folder.id);
   const active = tree.activeFolderId === folder.id && !tree.activeFileId;
   const Icon = open ? FolderOpen : Folder;
+  const anexos = folderAnexos(folder);
+  const childCount = folder.files.length + anexos.length;
 
   return (
     <div>
@@ -322,15 +338,20 @@ function FolderNode({
           <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
           <span className="min-w-0 flex-1 truncate">{folder.name}</span>
           <span className="shrink-0 text-[11px] text-white/60">
-            {folder.files.length}
+            {childCount}
           </span>
         </Link>
       </div>
       {open &&
-        (folder.files.length > 0 ? (
-          folder.files.map((file) => (
-            <FileNode key={file.id} file={file} depth={depth + 1} {...tree} />
-          ))
+        (childCount > 0 ? (
+          <>
+            {folder.files.map((file) => (
+              <FileNode key={file.id} file={file} depth={depth + 1} {...tree} />
+            ))}
+            {anexos.map((asset) => (
+              <AssetNode key={asset.id} asset={asset} depth={depth + 1} {...tree} />
+            ))}
+          </>
         ) : (
           <EmptyRow depth={depth + 1}>Pasta vazia</EmptyRow>
         ))}
@@ -357,6 +378,29 @@ function FileNode({
       <span className="-mr-1 w-5 shrink-0" aria-hidden />
       <FileText className="h-4 w-4 shrink-0 opacity-85" strokeWidth={1.75} />
       <span className="truncate">{file.title}</span>
+    </Link>
+  );
+}
+
+function AssetNode({
+  asset,
+  depth,
+  onNavigate,
+}: TreeProps & { asset: FolderAsset; depth: number }) {
+  const href = asset.folderId
+    ? folderHref(asset.workspaceId, asset.folderId)
+    : workspaceHref(asset.workspaceId);
+  return (
+    <Link
+      href={href}
+      onClick={onNavigate}
+      title={asset.name}
+      className={`flex h-8 items-center gap-2 pr-2 text-[13px] transition-colors ${rowTone(false)}`}
+      style={indent(depth)}
+    >
+      <span className="-mr-1 w-5 shrink-0" aria-hidden />
+      <Paperclip className="h-4 w-4 shrink-0 opacity-85" strokeWidth={1.75} />
+      <span className="truncate">{asset.name}</span>
     </Link>
   );
 }

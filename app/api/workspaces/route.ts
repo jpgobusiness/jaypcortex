@@ -44,7 +44,7 @@ export async function POST(req: Request) {
         order: await nextWorkspaceOrder(),
       },
     });
-    return ok({ ...workspace, folders: [], files: [] }, 201);
+    return ok({ ...workspace, folders: [], files: [], assets: [] }, 201);
   } catch (e) {
     return serverError(e);
   }

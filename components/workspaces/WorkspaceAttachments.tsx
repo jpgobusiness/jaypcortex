@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { Download, Paperclip, Trash2, Upload } from "lucide-react";
 import { IconButton } from "@/components/workspaces/WorkspaceFileList";
+import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
 import { apiDelete, apiGet, apiPatch, apiPostForm } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/workspaces";
 import type { FolderAsset } from "@/lib/types";
@@ -90,6 +91,7 @@ export default function WorkspaceAttachments({
   disabled?: boolean;
 }) {
   const inputId = useId();
+  const { reload } = useWorkspaces();
   const [items, setItems] = useState<FolderAsset[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -135,6 +137,7 @@ export default function WorkspaceAttachments({
   async function rename(item: FolderAsset, name: string) {
     const saved = await apiPatch<FolderAsset>(`/api/workspaces/assets/${item.id}`, { name });
     setItems((current) => current.map((row) => (row.id === saved.id ? { ...row, name: saved.name } : row)));
+    void reload();
   }
 
   async function remove(item: FolderAsset) {
@@ -143,6 +146,7 @@ export default function WorkspaceAttachments({
     try {
       await apiDelete(`/api/workspaces/assets/${item.id}`);
       await load();
+      await reload();
     } catch (cause) {
       alert(cause instanceof Error ? cause.message : "Erro ao excluir o arquivo");
     } finally {
@@ -169,6 +173,7 @@ export default function WorkspaceAttachments({
         await apiPostForm(uploadUrl, form);
       }
       await load();
+      await reload();
     } catch (cause) {
       alert(cause instanceof Error ? cause.message : "Erro ao enviar o arquivo");
     } finally {
