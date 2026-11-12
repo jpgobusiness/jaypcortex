@@ -48,15 +48,19 @@ function AssetNameField({
   }
 
   return (
-    <input
+    <textarea
       value={draft}
       disabled={disabled}
+      rows={1}
       onChange={(event) => setDraft(event.target.value)}
       onBlur={() => void commit()}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
       onKeyDown={(event) => {
-        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
         if (event.key === "Escape") {
           setDraft(name);
           event.currentTarget.blur();
@@ -65,10 +69,10 @@ function AssetNameField({
       maxLength={200}
       aria-label="Nome do arquivo"
       title="Clique para editar o nome"
-      className={`min-w-0 flex-1 rounded-md bg-transparent outline-none placeholder:text-[var(--muted)] hover:bg-black/[0.03] focus:bg-black/[0.03] focus:ring-2 focus:ring-[var(--brand)]/20 disabled:opacity-50 ${
+      className={`w-full resize-none break-all rounded-md bg-transparent outline-none [field-sizing:content] placeholder:text-[var(--muted)] hover:bg-black/[0.03] focus:bg-black/[0.03] focus:ring-2 focus:ring-[var(--brand)]/20 disabled:opacity-50 ${
         compact
-          ? "truncate px-0.5 text-xs text-[var(--foreground)]"
-          : "px-1 text-sm font-medium text-[var(--foreground)]"
+          ? "min-h-8 px-2 py-1.5 text-xs leading-5 text-[var(--foreground)]"
+          : "min-h-10 px-2.5 py-2 text-sm font-medium leading-5 text-[var(--foreground)]"
       }`}
     />
   );
@@ -231,67 +235,73 @@ export default function WorkspaceAttachments({
           Nenhum anexo ainda. Envie PDF, imagem ou qualquer arquivo (até 10 MB).
         </p>
       ) : (
-        <ul className={compact ? "space-y-1.5" : "divide-y divide-[var(--border)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]"}>
+        <ul className={compact ? "space-y-3" : "divide-y divide-[var(--border)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]"}>
           {items.map((item) =>
             compact ? (
-              <li key={item.id} className="flex items-center gap-2 text-xs">
-                <Paperclip className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
-                <AssetNameField
-                  name={item.name}
-                  compact
-                  disabled={blocked}
-                  onSave={(name) => rename(item, name)}
-                />
-                <span className="shrink-0 text-[10px] text-[var(--muted)]">
-                  {formatBytes(item.size)}
-                </span>
-                <button
-                  type="button"
-                  title="Baixar"
-                  disabled={blocked}
-                  onClick={() => void download(item)}
-                  className="text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  title="Excluir arquivo"
-                  disabled={blocked}
-                  onClick={() => void remove(item)}
-                  className="text-[var(--muted)] hover:text-red-600 disabled:opacity-50"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+              <li key={item.id} className="space-y-1.5 text-xs">
+                <div className="flex items-start gap-2">
+                  <Paperclip className="mt-2 h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
+                  <AssetNameField
+                    name={item.name}
+                    compact
+                    disabled={blocked}
+                    onSave={(name) => rename(item, name)}
+                  />
+                </div>
+                <div className="flex items-center gap-2 pl-6">
+                  <span className="min-w-0 flex-1 text-[10px] text-[var(--muted)]">
+                    {formatBytes(item.size)}
+                  </span>
+                  <button
+                    type="button"
+                    title="Baixar"
+                    disabled={blocked}
+                    onClick={() => void download(item)}
+                    className="text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    title="Excluir arquivo"
+                    disabled={blocked}
+                    onClick={() => void remove(item)}
+                    className="text-[var(--muted)] hover:text-red-600 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </li>
             ) : (
-              <li key={item.id} className="flex items-center gap-3 py-2 pl-4 pr-2">
-                <Paperclip className="h-4 w-4 shrink-0 text-[var(--muted)]" />
-                <div className="min-w-0 flex-1">
+              <li key={item.id} className="flex items-start gap-3 px-4 py-3">
+                <Paperclip className="mt-2.5 h-4 w-4 shrink-0 text-[var(--muted)]" />
+                <div className="min-w-0 flex-1 space-y-1.5">
                   <AssetNameField
                     name={item.name}
                     disabled={blocked}
                     onSave={(name) => rename(item, name)}
                   />
-                  <p className="text-xs text-[var(--muted)]">
-                    {formatBytes(item.size)} · {formatDateTime(item.createdAt)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 text-xs text-[var(--muted)]">
+                      {formatBytes(item.size)} · {formatDateTime(item.createdAt)}
+                    </p>
+                    <IconButton
+                      title="Baixar"
+                      disabled={blocked}
+                      onClick={() => void download(item)}
+                    >
+                      <Download className="h-4 w-4" />
+                    </IconButton>
+                    <IconButton
+                      title="Excluir arquivo"
+                      danger
+                      disabled={blocked}
+                      onClick={() => void remove(item)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </IconButton>
+                  </div>
                 </div>
-                <IconButton
-                  title="Baixar"
-                  disabled={blocked}
-                  onClick={() => void download(item)}
-                >
-                  <Download className="h-4 w-4" />
-                </IconButton>
-                <IconButton
-                  title="Excluir arquivo"
-                  danger
-                  disabled={blocked}
-                  onClick={() => void remove(item)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </IconButton>
               </li>
             )
           )}
