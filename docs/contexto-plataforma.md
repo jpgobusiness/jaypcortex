@@ -7,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 12 nov 2026 (anexos na árvore do menu)
+Última atualização: 12 nov 2026 (anexos em tabela)
 
 ## Últimas mudanças
 
+- 12 nov 2026 — **Anexos em tabela:** cada arquivo numa linha, colunas Arquivo e Cliente (oportunidade.client, senão nome da pasta). Sem tamanho nem data.
 - 12 nov 2026 — **Anexos no menu:** ao expandir a pasta (ou o espaço), os anexos aparecem na árvore ao lado dos documentos TipTap, com o nome do arquivo. Clique abre a pasta/espaço.
 - 12 nov 2026 — **Renomear anexo:** o nome visível do arquivo em Anexos é editável (clique, Enter ou sair do campo). PATCH `/api/workspaces/assets/[id]`; o path no Storage não muda.
 - 12 nov 2026 — **Anexos no espaço e na pasta:** upload e exclusão de arquivos binários (PDF, imagem, etc., até 10 MB) no bucket `opportunity-files`. Metadados em `FolderAsset` (`workspaceId` obrigatório, `folderId` nulo = raiz do espaço). UI **Anexos** no dashboard do espaço, na página da pasta e no cartão da pasta. Documentos TipTap continuam em **Arquivos**.
 - 9 nov 2026 — **Visualizar / Editar / Salvar:** o arquivo abre só para leitura. **Editar** liga o TipTap; **Salvar** grava na base (sem autosave). Novo arquivo abre já em edição. MCP/Quick continua gravando na hora via API; na visualização a página puxa a versão nova a cada 6s.
-- 9 nov 2026 — **Grade da tabela no editor:** bordas `#c5cad3`, cabeçalho cinza e wrapper com recorte; o Tailwind zerava borda/padding e `--border` (#e8eaee) sumia no fundo branco.
 
 ---
 

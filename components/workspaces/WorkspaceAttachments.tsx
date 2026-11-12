@@ -1,19 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useId, useState } from "react";
-import { Download, Paperclip, Trash2, Upload } from "lucide-react";
+import { Download, Trash2, Upload } from "lucide-react";
 import { IconButton } from "@/components/workspaces/WorkspaceFileList";
 import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
 import { apiDelete, apiGet, apiPatch, apiPostForm } from "@/lib/fetcher";
-import { formatDateTime } from "@/lib/workspaces";
-import type { FolderAsset } from "@/lib/types";
+import type { FolderAsset, WorkspaceFolder, WorkspaceTree } from "@/lib/types";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
-function formatBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+function clientNameOf(
+  workspaces: WorkspaceTree[],
+  workspaceId: string,
+  folderId?: string | null
+) {
+  const workspace = workspaces.find((item) => item.id === workspaceId);
+  const folder: WorkspaceFolder | undefined = folderId
+    ? workspace?.folders.find((item) => item.id === folderId)
+    : undefined;
+  const client = folder?.opportunity?.client?.trim();
+  if (client) return client;
+  const opportunity = folder?.opportunity?.name?.trim();
+  if (opportunity) return opportunity;
+  if (folder?.name?.trim()) return folder.name;
+  return workspace?.name?.trim() || "—";
 }
 
 function AssetNameField({
@@ -72,8 +82,8 @@ function AssetNameField({
       title="Clique para editar o nome"
       className={`w-full resize-none break-all rounded-md bg-transparent outline-none [field-sizing:content] placeholder:text-[var(--muted)] hover:bg-black/[0.03] focus:bg-black/[0.03] focus:ring-2 focus:ring-[var(--brand)]/20 disabled:opacity-50 ${
         compact
-          ? "min-h-8 px-2 py-1.5 text-xs leading-5 text-[var(--foreground)]"
-          : "min-h-10 px-2.5 py-2 text-sm font-medium leading-5 text-[var(--foreground)]"
+          ? "min-h-7 px-1 py-0.5 text-xs leading-5 text-[var(--foreground)]"
+          : "min-h-8 px-1 py-1 text-sm font-medium leading-5 text-[var(--foreground)]"
       }`}
     />
   );
@@ -91,7 +101,7 @@ export default function WorkspaceAttachments({
   disabled?: boolean;
 }) {
   const inputId = useId();
-  const { reload } = useWorkspaces();
+  const { reload, workspaces } = useWorkspaces();
   const [items, setItems] = useState<FolderAsset[]>([]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
@@ -240,77 +250,86 @@ export default function WorkspaceAttachments({
           Nenhum anexo ainda. Envie PDF, imagem ou qualquer arquivo (até 10 MB).
         </p>
       ) : (
-        <ul className={compact ? "space-y-3" : "divide-y divide-[var(--border)] overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]"}>
-          {items.map((item) =>
-            compact ? (
-              <li key={item.id} className="space-y-1.5 text-xs">
-                <div className="flex items-start gap-2">
-                  <Paperclip className="mt-2 h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
-                  <AssetNameField
-                    name={item.name}
-                    compact
-                    disabled={blocked}
-                    onSave={(name) => rename(item, name)}
-                  />
-                </div>
-                <div className="flex items-center gap-2 pl-6">
-                  <span className="min-w-0 flex-1 text-[10px] text-[var(--muted)]">
-                    {formatBytes(item.size)}
-                  </span>
-                  <button
-                    type="button"
-                    title="Baixar"
-                    disabled={blocked}
-                    onClick={() => void download(item)}
-                    className="text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    title="Excluir arquivo"
-                    disabled={blocked}
-                    onClick={() => void remove(item)}
-                    className="text-[var(--muted)] hover:text-red-600 disabled:opacity-50"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </li>
-            ) : (
-              <li key={item.id} className="flex items-start gap-3 px-4 py-3">
-                <Paperclip className="mt-2.5 h-4 w-4 shrink-0 text-[var(--muted)]" />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <AssetNameField
-                    name={item.name}
-                    disabled={blocked}
-                    onSave={(name) => rename(item, name)}
-                  />
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-0 flex-1 text-xs text-[var(--muted)]">
-                      {formatBytes(item.size)} · {formatDateTime(item.createdAt)}
-                    </p>
-                    <IconButton
-                      title="Baixar"
+        <div className={compact ? "overflow-x-auto" : "overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]"}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border)] text-left text-xs uppercase tracking-wide text-[var(--muted)]">
+                <th className={compact ? "px-1 py-1.5 font-medium" : "px-4 py-3 font-medium"}>Arquivo</th>
+                <th className={compact ? "px-1 py-1.5 font-medium" : "px-4 py-3 font-medium"}>Cliente</th>
+                <th className={compact ? "w-14 px-1 py-1.5 font-medium" : "w-24 px-3 py-3 font-medium"}>
+                  <span className="sr-only">Ações</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} className="border-b border-[var(--border)] last:border-0 align-top">
+                  <td className={compact ? "px-1 py-1.5" : "px-4 py-3"}>
+                    <AssetNameField
+                      name={item.name}
+                      compact={compact}
                       disabled={blocked}
-                      onClick={() => void download(item)}
-                    >
-                      <Download className="h-4 w-4" />
-                    </IconButton>
-                    <IconButton
-                      title="Excluir arquivo"
-                      danger
-                      disabled={blocked}
-                      onClick={() => void remove(item)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </IconButton>
-                  </div>
-                </div>
-              </li>
-            )
-          )}
-        </ul>
+                      onSave={(name) => rename(item, name)}
+                    />
+                  </td>
+                  <td
+                    className={
+                      compact
+                        ? "px-1 py-1.5 text-xs text-[var(--foreground)]"
+                        : "px-4 py-3 text-sm text-[var(--foreground)]"
+                    }
+                  >
+                    {clientNameOf(workspaces, item.workspaceId || workspaceId, item.folderId ?? folderId)}
+                  </td>
+                  <td className={compact ? "px-1 py-1.5" : "px-2 py-2"}>
+                    <div className="flex items-center justify-end gap-1">
+                      {compact ? (
+                        <>
+                          <button
+                            type="button"
+                            title="Baixar"
+                            disabled={blocked}
+                            onClick={() => void download(item)}
+                            className="text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Excluir arquivo"
+                            disabled={blocked}
+                            onClick={() => void remove(item)}
+                            className="text-[var(--muted)] hover:text-red-600 disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <IconButton
+                            title="Baixar"
+                            disabled={blocked}
+                            onClick={() => void download(item)}
+                          >
+                            <Download className="h-4 w-4" />
+                          </IconButton>
+                          <IconButton
+                            title="Excluir arquivo"
+                            danger
+                            disabled={blocked}
+                            onClick={() => void remove(item)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </IconButton>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </>
   );
