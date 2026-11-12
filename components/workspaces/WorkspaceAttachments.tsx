@@ -1,8 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { Download, Paperclip, Trash2, Upload } from "lucide-react";
-import { Button } from "@/components/ui/form";
 import { IconButton } from "@/components/workspaces/WorkspaceFileList";
 import { apiDelete, apiGet, apiPostForm } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/workspaces";
@@ -27,9 +26,11 @@ export default function WorkspaceAttachments({
   compact?: boolean;
   disabled?: boolean;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputId = useId();
   const [items, setItems] = useState<FolderAsset[]>([]);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const listUrl = folderId
     ? `/api/workspaces/folders/${folderId}/assets?kind=anexo`
@@ -81,8 +82,8 @@ export default function WorkspaceAttachments({
     }
   }
 
-  async function uploadFiles(files: FileList | File[]) {
-    const list = Array.from(files);
+  async function uploadFiles(files: File[]) {
+    const list = files.filter((file) => file.size >= 0 && file.name);
     if (list.length === 0) return;
     const tooBig = list.find((file) => file.size > MAX_BYTES);
     if (tooBig) {
@@ -91,7 +92,9 @@ export default function WorkspaceAttachments({
     }
     setBusy(true);
     try {
-      for (const file of list) {
+      for (let i = 0; i < list.length; i += 1) {
+        const file = list[i];
+        setProgress(`Enviando ${i + 1}/${list.length}: ${file.name}`);
         const form = new FormData();
         form.append("file", file);
         form.append("kind", "anexo");
@@ -101,9 +104,31 @@ export default function WorkspaceAttachments({
     } catch (cause) {
       alert(cause instanceof Error ? cause.message : "Erro ao enviar o arquivo");
     } finally {
+      setProgress(null);
       setBusy(false);
     }
   }
+
+  const blocked = disabled || busy;
+  const pickLabel = compact ? (
+    <label
+      htmlFor={inputId}
+      className={`inline-flex h-8 min-h-0 cursor-pointer items-center justify-center gap-1 rounded-lg border border-[var(--border)] bg-white px-2 py-1 text-xs font-medium text-[var(--foreground)] hover:bg-black/[0.03] ${
+        blocked ? "pointer-events-none cursor-not-allowed opacity-50" : ""
+      }`}
+    >
+      <Upload className="h-3.5 w-3.5" /> Enviar arquivo
+    </label>
+  ) : (
+    <label
+      htmlFor={inputId}
+      className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--border)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--foreground)] hover:bg-black/[0.03] md:min-h-0 md:py-2 ${
+        blocked ? "pointer-events-none cursor-not-allowed opacity-50" : ""
+      }`}
+    >
+      <Upload className="h-4 w-4" /> Enviar arquivo
+    </label>
+  );
 
   const heading = compact ? (
     <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">
@@ -112,41 +137,30 @@ export default function WorkspaceAttachments({
   ) : (
     <div className="mb-3 flex items-center justify-between gap-3">
       <h2 className="text-sm font-semibold text-[var(--foreground)]">Anexos</h2>
-      <Button
-        variant="outline"
-        onClick={() => inputRef.current?.click()}
-        disabled={disabled || busy}
-      >
-        <Upload className="h-4 w-4" /> Enviar arquivo
-      </Button>
+      {pickLabel}
     </div>
   );
 
   const body = (
     <>
       <input
-        ref={inputRef}
+        id={inputId}
         type="file"
         multiple
-        className="hidden"
+        disabled={blocked}
+        className="sr-only"
         onChange={(event) => {
-          const files = event.target.files;
+          const files = Array.from(event.target.files ?? []);
           event.target.value = "";
-          if (files?.length) void uploadFiles(files);
+          if (files.length) void uploadFiles(files);
         }}
       />
       {heading}
-      {compact && (
-        <div className="mb-2">
-          <Button
-            variant="outline"
-            className="h-8 min-h-0 px-2 py-1 text-xs"
-            onClick={() => inputRef.current?.click()}
-            disabled={disabled || busy}
-          >
-            <Upload className="h-3.5 w-3.5" /> Enviar arquivo
-          </Button>
-        </div>
+      {compact && <div className="mb-2">{pickLabel}</div>}
+      {progress && (
+        <p className={compact ? "mb-2 text-[11px] text-[var(--muted)]" : "mb-2 text-sm text-[var(--muted)]"}>
+          {progress}
+        </p>
       )}
       {items.length === 0 ? (
         <p className={compact ? "text-[11px] text-[var(--muted)]" : "text-sm text-[var(--muted)]"}>
@@ -165,7 +179,7 @@ export default function WorkspaceAttachments({
                 <button
                   type="button"
                   title="Baixar"
-                  disabled={disabled || busy}
+                  disabled={blocked}
                   onClick={() => void download(item)}
                   className="text-[var(--muted)] hover:text-[var(--foreground)] disabled:opacity-50"
                 >
@@ -174,7 +188,7 @@ export default function WorkspaceAttachments({
                 <button
                   type="button"
                   title="Excluir arquivo"
-                  disabled={disabled || busy}
+                  disabled={blocked}
                   onClick={() => void remove(item)}
                   className="text-[var(--muted)] hover:text-red-600 disabled:opacity-50"
                 >
@@ -192,7 +206,7 @@ export default function WorkspaceAttachments({
                 </div>
                 <IconButton
                   title="Baixar"
-                  disabled={disabled || busy}
+                  disabled={blocked}
                   onClick={() => void download(item)}
                 >
                   <Download className="h-4 w-4" />
@@ -200,7 +214,7 @@ export default function WorkspaceAttachments({
                 <IconButton
                   title="Excluir arquivo"
                   danger
-                  disabled={disabled || busy}
+                  disabled={blocked}
                   onClick={() => void remove(item)}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -213,9 +227,36 @@ export default function WorkspaceAttachments({
     </>
   );
 
-  if (compact) {
-    return <div className="border-t border-[var(--border)] px-4 py-3">{body}</div>;
-  }
+  const shellClass = compact
+    ? `border-t border-[var(--border)] px-4 py-3 ${dragging ? "bg-[var(--brand)]/5" : ""}`
+    : dragging
+      ? "rounded-2xl ring-2 ring-[var(--brand)]/40"
+      : "";
 
-  return <section>{body}</section>;
+  return (
+    <section
+      className={shellClass}
+      onDragEnter={(event) => {
+        event.preventDefault();
+        if (!blocked) setDragging(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!blocked) setDragging(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+        setDragging(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        if (blocked) return;
+        const files = Array.from(event.dataTransfer.files ?? []);
+        if (files.length) void uploadFiles(files);
+      }}
+    >
+      {body}
+    </section>
+  );
 }

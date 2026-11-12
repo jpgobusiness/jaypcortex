@@ -631,7 +631,11 @@ function FolderCard({
           ))}
         </ul>
       )}
-      <div className="relative z-10">
+      <div
+        className="relative z-20"
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
         <WorkspaceAttachments
           workspaceId={folder.workspaceId}
           folderId={folder.id}
