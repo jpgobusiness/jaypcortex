@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { Download, Paperclip, Trash2, Upload } from "lucide-react";
 import { IconButton } from "@/components/workspaces/WorkspaceFileList";
-import { apiDelete, apiGet, apiPostForm } from "@/lib/fetcher";
+import { apiDelete, apiGet, apiPatch, apiPostForm } from "@/lib/fetcher";
 import { formatDateTime } from "@/lib/workspaces";
 import type { FolderAsset } from "@/lib/types";
 
@@ -13,6 +13,65 @@ function formatBytes(n: number) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function AssetNameField({
+  name,
+  compact,
+  disabled,
+  onSave,
+}: {
+  name: string;
+  compact?: boolean;
+  disabled?: boolean;
+  onSave: (name: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState(name);
+
+  useEffect(() => {
+    setDraft(name);
+  }, [name]);
+
+  async function commit() {
+    const next = draft.trim();
+    if (!next) {
+      setDraft(name);
+      return;
+    }
+    if (next === name) return;
+    try {
+      await onSave(next);
+    } catch (cause) {
+      setDraft(name);
+      alert(cause instanceof Error ? cause.message : "Erro ao salvar o nome");
+    }
+  }
+
+  return (
+    <input
+      value={draft}
+      disabled={disabled}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => void commit()}
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+        if (event.key === "Escape") {
+          setDraft(name);
+          event.currentTarget.blur();
+        }
+      }}
+      maxLength={200}
+      aria-label="Nome do arquivo"
+      title="Clique para editar o nome"
+      className={`min-w-0 flex-1 rounded-md bg-transparent outline-none placeholder:text-[var(--muted)] hover:bg-black/[0.03] focus:bg-black/[0.03] focus:ring-2 focus:ring-[var(--brand)]/20 disabled:opacity-50 ${
+        compact
+          ? "truncate px-0.5 text-xs text-[var(--foreground)]"
+          : "px-1 text-sm font-medium text-[var(--foreground)]"
+      }`}
+    />
+  );
 }
 
 export default function WorkspaceAttachments({
@@ -67,6 +126,11 @@ export default function WorkspaceAttachments({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function rename(item: FolderAsset, name: string) {
+    const saved = await apiPatch<FolderAsset>(`/api/workspaces/assets/${item.id}`, { name });
+    setItems((current) => current.map((row) => (row.id === saved.id ? { ...row, name: saved.name } : row)));
   }
 
   async function remove(item: FolderAsset) {
@@ -172,7 +236,12 @@ export default function WorkspaceAttachments({
             compact ? (
               <li key={item.id} className="flex items-center gap-2 text-xs">
                 <Paperclip className="h-3.5 w-3.5 shrink-0 text-[var(--muted)]" />
-                <span className="min-w-0 flex-1 truncate text-[var(--foreground)]">{item.name}</span>
+                <AssetNameField
+                  name={item.name}
+                  compact
+                  disabled={blocked}
+                  onSave={(name) => rename(item, name)}
+                />
                 <span className="shrink-0 text-[10px] text-[var(--muted)]">
                   {formatBytes(item.size)}
                 </span>
@@ -199,7 +268,11 @@ export default function WorkspaceAttachments({
               <li key={item.id} className="flex items-center gap-3 py-2 pl-4 pr-2">
                 <Paperclip className="h-4 w-4 shrink-0 text-[var(--muted)]" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-[var(--foreground)]">{item.name}</p>
+                  <AssetNameField
+                    name={item.name}
+                    disabled={blocked}
+                    onSave={(name) => rename(item, name)}
+                  />
                   <p className="text-xs text-[var(--muted)]">
                     {formatBytes(item.size)} · {formatDateTime(item.createdAt)}
                   </p>

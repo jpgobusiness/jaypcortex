@@ -7,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 12 nov 2026 (anexos no espaço e na pasta)
+Última atualização: 12 nov 2026 (renomear anexo)
 
 ## Últimas mudanças
 
+- 12 nov 2026 — **Renomear anexo:** o nome visível do arquivo em Anexos é editável (clique, Enter ou sair do campo). PATCH `/api/workspaces/assets/[id]`; o path no Storage não muda.
 - 12 nov 2026 — **Anexos no espaço e na pasta:** upload e exclusão de arquivos binários (PDF, imagem, etc., até 10 MB) no bucket `opportunity-files`. Metadados em `FolderAsset` (`workspaceId` obrigatório, `folderId` nulo = raiz do espaço). UI **Anexos** no dashboard do espaço, na página da pasta e no cartão da pasta. Documentos TipTap continuam em **Arquivos**.
 - 9 nov 2026 — **Visualizar / Editar / Salvar:** o arquivo abre só para leitura. **Editar** liga o TipTap; **Salvar** grava na base (sem autosave). Novo arquivo abre já em edição. MCP/Quick continua gravando na hora via API; na visualização a página puxa a versão nova a cada 6s.
 - 9 nov 2026 — **Grade da tabela no editor:** bordas `#c5cad3`, cabeçalho cinza e wrapper com recorte; o Tailwind zerava borda/padding e `--border` (#e8eaee) sumia no fundo branco.
 - 9 nov 2026 — **Tabelas no documento:** Markdown GFM (`| col |`) vira nodes TipTap `table`/`tableRow`/`tableHeader`/`tableCell` no `upsert_section` / `append_to_document` / `create_file_in_folder`. Editor e conversor compartilham a extensão Table. Conteúdo antigo achatado em parágrafo não se recompõe sozinho — precisa regravar a seção.
-- 9 nov 2026 — **Quick Action Review em escritas:** `tools/list` marca JSON Schema Draft 7; escritas só string. `create_opportunity_folder` pede só `name`. `create_file_in_folder` pede `folder` (nome) + `title`, sem id. Depois do deploy: Sync + habilitar tools no JayPCortexChat.
 
 ---
 
@@ -63,7 +63,7 @@ Tudo é de **um operador** (você). Não há multi-empresa nem “criar conta”
 - **Configurações** — tipos e status de atividade + **Tokens MCP** (admin: criar/listar/revogar)
 
 ### Conhecimento e agentes
-- **Espaços de trabalho** — `/espacos` lista só espaços de conteúdo (hoje **MAP - MIGRAÇÕES** e **Oportunidades**) + cartão **Sala dos agentes** → `/escritorio`. Salas Ana/Leo/Bia/Rafa/Duda/João (e demais agentes) **não** aparecem como espaço. Clicar no espaço abre `/espacos/[id]` (nome/descrição editáveis, contagens, pastas, arquivos TipTap e **Anexos**). Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, listar arquivos, anexos, funil e entregas). Upload e exclusão de anexo no espaço (raiz) ou na pasta; binário no bucket `opportunity-files` (até 10 MB). Arquivo TipTap abre em visualização; **Editar** / **Salvar** gravam na base (MCP grava sozinho). Editor TipTap com tabelas, `kind`, tags, índice, histórico e selo “editado pelo Quick”. Espaço **Oportunidades**: Nova oportunidade, transcrição, Entregas.
+- **Espaços de trabalho** — `/espacos` lista só espaços de conteúdo (hoje **MAP - MIGRAÇÕES** e **Oportunidades**) + cartão **Sala dos agentes** → `/escritorio`. Salas Ana/Leo/Bia/Rafa/Duda/João (e demais agentes) **não** aparecem como espaço. Clicar no espaço abre `/espacos/[id]` (nome/descrição editáveis, contagens, pastas, arquivos TipTap e **Anexos**). Clicar na pasta abre `/espacos/[id]/pastas/[id]` (editar nome, listar arquivos, anexos, funil e entregas). Upload, exclusão e renomear anexo no espaço (raiz) ou na pasta; binário no bucket `opportunity-files` (até 10 MB). Arquivo TipTap abre em visualização; **Editar** / **Salvar** gravam na base (MCP grava sozinho). Editor TipTap com tabelas, `kind`, tags, índice, histórico e selo “editado pelo Quick”. Espaço **Oportunidades**: Nova oportunidade, transcrição, Entregas.
 - **Comercial** — `/comercial`: funil (`Opportunity`) e bloco Documentos da pasta vinculada.
 - **Escritório de agentes** — agentes 3D, cada um com “sala” (um Workspace) e pastas padrão: `Prompt`, `Base de conhecimento`, `Templates`, `Entregas`. Painel com abas: Visão, Prompt, Base, Propostas, Histórico, Testar.
 - **Base de conhecimento do agente** — **não copia** o documento; é um vínculo `AgentKnowledge` → `WorkspaceFile`. Continua editável por **Base de conhecimento → Novo arquivo** (editor TipTap).
@@ -194,7 +194,7 @@ Nomes no Postgres são os do Prisma (`"WorkspaceFile"`, `"McpToken"`, …), não
 - `/api/workspaces/folders/[id]/transcripts` (POST importar .txt/.md/.vtt/.srt/.docx ou JSON `{text}`)
 - `/api/workspaces/folders/[id]/assets` (GET lista, POST entrega HTML ou multipart anexo)
 - `/api/workspaces/[id]/assets` (GET/POST anexos da raiz do espaço, `folderId` nulo)
-- `/api/workspaces/assets/[assetId]` (GET URL assinada 5 min, DELETE)
+- `/api/workspaces/assets/[assetId]` (GET URL assinada 5 min, PATCH nome visível, DELETE)
 - `GET /api/opportunities`, `GET /api/opportunities/[id]`, `POST /api/opportunities/folders` (cria pasta+templates via o mesmo serviço MCP)
 - PATCH `/api/workspaces/folders/[id]` aceita `opportunityId` (vazio desvincula)
 - `/api/activities/briefing`, `/review`, `/trash`

@@ -805,6 +805,31 @@ export async function deleteFolderAsset(assetId: string) {
   return { ok: true, id: asset.id };
 }
 
+const ASSET_NAME_MAX = 200;
+
+function displayAssetName(current: string, next: string) {
+  const trimmed = next.trim();
+  if (!trimmed) throw new Error("Informe o nome");
+  if (trimmed.length > ASSET_NAME_MAX) {
+    throw new Error(`O nome pode ter até ${ASSET_NAME_MAX} caracteres`);
+  }
+  const currentExt = current.includes(".") ? current.slice(current.lastIndexOf(".")) : "";
+  return trimmed.includes(".") ? trimmed : `${trimmed}${currentExt}`;
+}
+
+/** Só o nome visível; o path no Storage não muda. */
+export async function renameFolderAsset(assetId: string, name: string) {
+  const asset = await prisma.folderAsset.findUnique({ where: { id: assetId } });
+  if (!asset) throw new Error("Arquivo não encontrado");
+  const next = displayAssetName(asset.name, name);
+  if (next === asset.name) return publicAsset(asset);
+  const updated = await prisma.folderAsset.update({
+    where: { id: asset.id },
+    data: { name: next },
+  });
+  return publicAsset(updated);
+}
+
 export function loadProposalTemplate(name?: string) {
   return getProposalTemplate(name);
 }
