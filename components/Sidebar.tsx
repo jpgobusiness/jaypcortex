@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   Briefcase,
   CalendarCheck,
+  ChartPie,
   ChevronDown,
   Flame,
   Bot,
@@ -17,6 +18,7 @@ import {
   Settings,
   Timer,
   User,
+  Wallet,
   Waypoints,
   Zap,
   LogOut,
@@ -43,7 +45,14 @@ const ACTIVITY_SECTIONS = [
 const PESSOAL = [
   { href: "/controle-diario", label: "Controle Diário", icon: CalendarCheck },
   { href: "/desafio", label: "Desafio", icon: Flame },
+  { href: "/financas", label: "Finanças", icon: Wallet, except: "/financas/dashboards" },
+  { href: "/financas/dashboards", label: "Dashboards financeiros", icon: ChartPie },
 ];
+
+/** Item ativo: a rota começa com o href (menos a sub-rota que tem item próprio). */
+function isActive(pathname: string, item: { href: string; except?: string }) {
+  return pathname.startsWith(item.href) && !(item.except && pathname.startsWith(item.except));
+}
 
 const PROFISSIONAL = [
   { href: "/comercial", label: "Comercial", icon: Briefcase },
@@ -219,7 +228,7 @@ export default function Sidebar({
                   href={item.href}
                   label={item.label}
                   icon={item.icon}
-                  active={pathname.startsWith(item.href)}
+                  active={isActive(pathname, item)}
                   collapsed={collapsed && !embedded}
                   onNavigate={onNavigate}
                 />

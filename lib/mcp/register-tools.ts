@@ -11,6 +11,8 @@ import { applyProposal, createProposal, rejectProposal } from "@/lib/proposals/s
 import { writeAudit } from "@/lib/mcp/audit";
 import { hasScope, type McpScope } from "@/lib/mcp/tokens";
 import { registerActivityTools } from "@/lib/mcp/register-activity-tools";
+import { registerGroupTools } from "@/lib/mcp/register-group-tools";
+import { registerFinanceTools } from "@/lib/mcp/register-finance-tools";
 import { registerCortexTools } from "@/lib/mcp/register-cortex-tools";
 import { registerOpportunityTools } from "@/lib/mcp/register-opportunity-tools";
 import { parseEditorDocument } from "@/lib/workspaces";
@@ -51,6 +53,8 @@ export function registerMcpTools(
 ) {
   const actor = { createdBy: ctx.profileId || null, source: "mcp" as const };
   registerActivityTools(server, ctx);
+  registerGroupTools(server, ctx);
+  registerFinanceTools(server, ctx);
   registerCortexTools(server, ctx);
   registerOpportunityTools(server, ctx);
 

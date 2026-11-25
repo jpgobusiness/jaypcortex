@@ -1,6 +1,6 @@
 // Trocar a versão apaga o cache antigo (que tinha CSS e JS desatualizados).
 const CACHE = "nuage-shell-v3";
-const PRECACHE = ["/", "/atividades", "/escritorio", "/espacos", "/controle-diario", "/desafio", "/horas-extras", "/configuracoes", "/offline"];
+const PRECACHE = ["/", "/atividades", "/escritorio", "/espacos", "/controle-diario", "/desafio", "/horas-extras", "/financas", "/configuracoes", "/offline"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

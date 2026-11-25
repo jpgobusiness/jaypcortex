@@ -52,6 +52,22 @@ export type Activity = {
   source?: string | null;
   createdAt: string;
   updatedAt: string;
+  groups?: { id: string; name: string; color: string | null; icon: string | null }[];
+  groupIds?: string[];
+  groupNames?: string[];
+};
+
+export type ActivityGroupSummary = {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  icon: string | null;
+  assigneeEmail: string | null;
+  ownerEmail: string | null;
+  archived: boolean;
+  openCount: number;
+  overdueCount: number;
 };
 
 export type AutomationContact = {

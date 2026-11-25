@@ -4,12 +4,14 @@ import { MCP_ISSUER } from "@/lib/mcp/http";
 import { addDaysCivil, civilUtc, daysUntilDue, formatLocalDate, nextDueFromRrule, parseDatePhrase, zonedParts } from "./dates";
 import { activityPageEnvelope } from "./page";
 import { scoreActivity } from "./priority";
+import { activityGroupInclude, attachActivityGroups, setActivityGroups, visibleGroups } from "./groups";
 
 export type Actor = { actorId?: string | null; source?: string };
 
 const INCLUDE = {
   type: true,
   opportunity: { select: { id: true, name: true } },
+  ...activityGroupInclude,
 } as const;
 
 export class ActivityAmbiguousError extends Error {
@@ -39,7 +41,7 @@ async function statuses() {
 
 function snap(row: Record<string, unknown> | null | undefined) {
   if (!row) return null;
-  const { type, opportunity, events, sessions, reminders, children, parent, mapNodes, ...rest } = row as Record<string, unknown>;
+  const { type, opportunity, events, sessions, reminders, children, parent, mapNodes, groupMemberships, ...rest } = row as Record<string, unknown>;
   void type;
   void opportunity;
   void events;
@@ -48,6 +50,7 @@ function snap(row: Record<string, unknown> | null | undefined) {
   void children;
   void parent;
   void mapNodes;
+  void groupMemberships;
   return rest;
 }
 
@@ -92,6 +95,7 @@ export function present(row: {
   spentMinutes?: number | null;
   deletedAt?: Date | null;
   type?: { name: string } | null;
+  groupMemberships?: { group: { id: string; name: string; archived?: boolean } }[] | null;
 }, st?: { isInProgress?: boolean; name?: string; isDone?: boolean } | null) {
   const scored = scoreActivity({
     priority: row.priority,
@@ -104,6 +108,7 @@ export function present(row: {
   });
   const dueText = formatLocalDate(row.dueDate);
   const voice = `${row.title}${dueText ? `, prazo ${dueText}` : ""}${row.queueOrder ? `, #${row.queueOrder} na fila` : ""}`;
+  const groups = row.groupMemberships === undefined ? undefined : visibleGroups(row.groupMemberships);
   return {
     id: row.id,
     title: row.title,
@@ -120,6 +125,9 @@ export function present(row: {
     url: `${MCP_ISSUER}/atividades`,
     voice,
     deleted: Boolean(row.deletedAt),
+    ...(groups
+      ? { groupIds: groups.map((group) => group.id), groupNames: groups.map((group) => group.name) }
+      : {}),
   };
 }
 
@@ -186,6 +194,7 @@ export type ListActivitiesOpts = {
   q?: string;
   in_queue?: boolean;
   include_deleted?: boolean;
+  groupId?: string;
   sort?: string;
   limit?: number;
   parentId?: string | null;
@@ -233,6 +242,7 @@ export async function listActivitiesPage(opts: ListActivitiesOpts) {
   } else if (opts.due === "no_date") {
     where.dueDate = null;
   }
+  if (opts.groupId) where.groupMemberships = { some: { groupId: opts.groupId } };
   if (opts.q) {
     const ids = await searchIds(opts.q, Math.min(limit * 5, 200), opts.include_deleted);
     where.id = { in: ids.length ? ids : ["__none__"] };
@@ -326,6 +336,7 @@ type CreateInput = {
   waitingOn?: string | null;
   parentId?: string | null;
   recurrenceRule?: string | null;
+  groupIds?: string[] | null;
   clientKey?: string | null;
   addToQueue?: boolean | number | null;
   source?: string | null;
@@ -351,8 +362,12 @@ export async function createActivity(input: CreateInput, actor: Actor) {
   if (input.clientKey) {
     const existing = await prisma.activity.findUnique({ where: { clientKey: input.clientKey }, include: INCLUDE });
     if (existing) {
+      if (input.groupIds?.length) await attachActivityGroups(existing.id, input.groupIds, actor);
+      const fresh = input.groupIds?.length
+        ? await prisma.activity.findUnique({ where: { id: existing.id }, include: INCLUDE })
+        : existing;
       const st = await statuses();
-      return { activity: existing, presented: present(existing, st.byKey.get(existing.status)), idempotent: true };
+      return { activity: fresh!, presented: present(fresh!, st.byKey.get(fresh!.status)), idempotent: true };
     }
   }
   const st = await statuses();
@@ -389,6 +404,7 @@ export async function createActivity(input: CreateInput, actor: Actor) {
     },
     include: INCLUDE,
   });
+  if (input.groupIds?.length) await attachActivityGroups(row.id, input.groupIds, actor);
   if (input.addToQueue) {
     await queueAdd([row.id], typeof input.addToQueue === "number" ? input.addToQueue : undefined, actor, true);
   }
@@ -437,7 +453,11 @@ export async function updateActivity(id: string, patch: CreateInput & Record<str
     data.completedAt = def?.isDone ? new Date() : null;
     if (def?.isDone) data.queueOrder = null;
   }
-  const row = await prisma.activity.update({ where: { id }, data, include: INCLUDE });
+  let row = await prisma.activity.update({ where: { id }, data, include: INCLUDE });
+  if (patch.groupIds !== undefined) {
+    await setActivityGroups(id, patch.groupIds ?? [], actor);
+    row = await prisma.activity.findUniqueOrThrow({ where: { id }, include: INCLUDE });
+  }
   await emit({ activityId: id, type: patch.status !== undefined ? "status_changed" : "updated", before: snap(before as never), after: snap(row as never), actor });
   return { activity: row, presented: present(row, st.byKey.get(row.status)) };
 }
@@ -504,6 +524,10 @@ export async function completeActivity(id: string, actor: Actor) {
   if (before.recurrenceRule && before.dueDate) {
     const nextDue = nextDueFromRrule(before.recurrenceRule, before.dueDate);
     if (nextDue) {
+      const links = await prisma.activityGroupMember.findMany({
+        where: { activityId: before.id },
+        select: { groupId: true },
+      });
       await createActivity({
         title: before.title,
         typeId: before.typeId,
@@ -520,6 +544,7 @@ export async function completeActivity(id: string, actor: Actor) {
         area: before.area,
         recurrenceRule: before.recurrenceRule,
         source: before.source,
+        groupIds: links.map((link) => link.groupId),
       }, actor);
     }
   }

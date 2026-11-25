@@ -7,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 12 nov 2026 (anexos em tabela)
+Última atualização: 25 nov 2026 (MCP de finanças)
 
 ## Últimas mudanças
 
-- 12 nov 2026 — **Anexos em tabela:** cada arquivo numa linha, colunas Arquivo e Cliente (oportunidade.client, senão nome da pasta). Sem tamanho nem data.
-- 12 nov 2026 — **Anexos no menu:** ao expandir a pasta (ou o espaço), os anexos aparecem na árvore ao lado dos documentos TipTap, com o nome do arquivo. Clique abre a pasta/espaço.
-- 12 nov 2026 — **Renomear anexo:** o nome visível do arquivo em Anexos é editável (clique, Enter ou sair do campo). PATCH `/api/workspaces/assets/[id]`; o path no Storage não muda.
-- 12 nov 2026 — **Anexos no espaço e na pasta:** upload e exclusão de arquivos binários (PDF, imagem, etc., até 10 MB) no bucket `opportunity-files`. Metadados em `FolderAsset` (`workspaceId` obrigatório, `folderId` nulo = raiz do espaço). UI **Anexos** no dashboard do espaço, na página da pasta e no cartão da pasta. Documentos TipTap continuam em **Arquivos**.
-- 9 nov 2026 — **Visualizar / Editar / Salvar:** o arquivo abre só para leitura. **Editar** liga o TipTap; **Salvar** grava na base (sem autosave). Novo arquivo abre já em edição. MCP/Quick continua gravando na hora via API; na visualização a página puxa a versão nova a cada 6s.
+- 25 nov 2026 — **Finanças no MCP (Quick):** despesas de ponta a ponta no mesmo `/api/mcp`. Leitura: `list_expenses`, `get_expense`, `search_expenses`, `expense_report`, `finance_snapshot`, `list_bills`, `finance_analytics` (totais em reais e centavos, prontos para dashboard). Escrita: `create_expense`, `create_recurring_expense` (sem `end_date` = assinatura), `create_card_expense`, `create_housing_expense`, `update_expense`, `pay_expense` (`clearedAt`, não debita), `delete_expense` (`confirm=true`). Também receita, transferência e pagamento de fatura. Schema só string.
+- 25 nov 2026 — **Atividades · Grupos:** `ActivityGroup` + `ActivityGroupMember` (N:N). Nome único por usuário. Responsável em `assigneeEmail` (Acompanhamento David → dpsilva@nuageit.com.br). Apagar o grupo não apaga tarefas. API `/api/activity-groups` e tools MCP `create_group`, `update_group`, `delete_group`, `list_groups`, `get_group`, `add_activities_to_group`, `remove_activities_from_group`, `list_group_activities`. Na tela: filtro, chip e grupos na atividade.
+- 17 nov 2026 — **Finanças · Validar removido:** saiu a coluna/selo provisório de Validado nas Despesas e nos empréstimos. Pago / Não pago / Atrasado continua.
+- 17 nov 2026 — **Finanças · Assinatura no cartão:** em **Nova despesa** (e no cartão) dá para cadastrar Netflix, iCloud… que entra na fatura todo mês, sem parcelar e sem data para acabar. Cancelar só para as próximas faturas; o que já entrou na fatura aberta fica.
+- 17 nov 2026 — **Finanças · Recorrentes · Aluguel e condomínio:** subcategorias de Moradia. Em Recorrentes, atalho para cadastrar cada um com “pago desde”, valor de cada mês no histórico e valor previsto deste mês em diante. Não debita saldo ao gravar os meses.
 
 ---
 
@@ -32,6 +32,7 @@
 | Admin | `pjoao4446@gmail.com` em `auth.users` + `profiles.role=admin`. Senha **não** está no repo. |
 | Supabase | `gzavuqgoxllbgfyyyrjv` (`us-west-2`). `public` com dados copiados (28 tabelas) + `profiles`. `OvertimeAttachment` = 0 linhas. |
 | Hospedagem | **Vercel** em https://jaypcortex.vercel.app. GitHub `jpgobusiness/jaypcortex`. Node 22. |
+| Finanças | Módulo `/financas` (Pessoal). Tabelas `FinanceAccount`, `CreditCard`, `CardInvoice`, `FinanceCategory` (33 padrão, Aluguel e Condomínio sob Moradia), `FinanceRecurrence`, `Loan`, `FinanceTransaction`, `FinanceDashboard`. Views `v_fin_*` para dashboards externos. MCP no mesmo `/api/mcp` (despesas primeiro: listar, buscar, relatório, criar, recorrente, cartão, pagar, apagar). Sem LLM, sem Open Finance. |
 | Edge Functions | Zero (MCP e indexação no Next/Vercel) |
 | Storage | Buckets privados `overtime-attachments` (horas extras) e `opportunity-files` (HTML de entrega, anexos de espaço/pasta, áudio). Binário nunca no Postgres (só `path`). Acesso via API Next + service role; URL assinada curta (5 min). |
 | MCP | **Um servidor para o escritório inteiro** (não um por agente). URL `https://jaypcortex.vercel.app/api/mcp`. Auth: Bearer estático **ou** OAuth `client_credentials` **ou** OAuth `authorization_code`+PKCE (access 1h, refresh 30d). Escopos `read` / `propose` / `write` / `admin`. Porta de entrada: tool **`cortex`**. Tools com `title` PT-BR + annotations. `tools/list` em JSON Schema Draft 7 (Quick); escritas só string (Action Review). `plan_day` lê; `apply_day_plan` grava. `list_activities` padrão pendentes + `total`/`truncated`/`counts`. Oportunidades: `list_opportunity_folders`, `create_opportunity_folder` (só `name` → pasta + Contexto + Proposal Doc), `create_file_in_folder`, `get_document_outline`, `read_section`, `upsert_section`, `append_to_document`, `delete_section`, `import_transcript`, `register_delivery`, `get_proposal_template`, `link_opportunity_folder`. Agente `propostas`. |
@@ -42,7 +43,7 @@
 | Chat do agente | **Não existe** tool/rota que chame LLM. O cliente chama `cortex` e veste `agent_prompt`. Aba Testar só devolve trechos. |
 | Agente MAP | slug `migracao-aws`, 6 camadas de prompt, 12 docs + 5 templates, prompt v1 publicado. `routing` preenchido. |
 | Agente Propostas | slug `propostas`, nome **Propostas**, role Arquiteto de propostas. 6 camadas, templates do espaço Oportunidades na base (`AgentKnowledge`), prompt com fluxo de entrega HTML publicado (Fase C). |
-| Páginas | `/login`, `/atividades`, `/controle-diario`, `/desafio`, `/horas-extras`, `/automacoes`, `/configuracoes`, `/usuarios`, `/escritorio`, `/espacos`, `/espacos/[id]`, `/espacos/[id]/pastas/[id]`, `/espacos/[id]/arquivos/[id]`, `/comercial`, `/comercial/[id]`. |
+| Páginas | `/login`, `/atividades`, `/controle-diario`, `/desafio`, `/horas-extras`, `/automacoes`, `/configuracoes`, `/usuarios`, `/escritorio`, `/espacos`, `/espacos/[id]`, `/espacos/[id]/pastas/[id]`, `/espacos/[id]/arquivos/[id]`, `/comercial`, `/comercial/[id]`, `/financas` (+ `/despesas`, `/contas-a-pagar`, `/lancamentos`, `/contas`, `/cartoes/[id]`, `/recorrentes`, `/emprestimos`, `/emprestimos/[id]`, `/dashboards`). |
 
 Conclusão: app no Postgres + login + **um MCP da plataforma** (porta `cortex` + conhecimento + atividades + oportunidades) + Cortex + Agente MAP + Gestor de Atividades + Propostas, publicado na Vercel.
 
@@ -55,9 +56,10 @@ Tudo é de **um operador** (você). Não há multi-empresa nem “criar conta”
 ### Pessoal
 - **Controle diário** — hábitos dinâmicos + check por dia
 - **Desafio** — hábitos/itens do mês, nota, treino, água, etc.
+- **Finanças** — `/financas`. Contas (saldo inicial com data, ajuste de saldo, arquivar), cartões (limite, fechamento = melhor dia de compra, vencimento; fim de semana vai para segunda; **assinaturas** no cartão: recorrente sem fim, sem ser parcela; cancelar mantém o histórico da fatura), faturas (aberta/futura/fechada/vencida/paga, pagamento total ou parcial, mover compra, datas do banco por fatura), lançamentos (despesa pontual, fixa, variável, cartão à vista/parcelado: as N parcelas seguem a data da compra, gráfico e filtro inclusive; **assinatura** no cartão sem fim; empréstimo; receita recorrente ou pontual; transferência), recorrências (mensal, bimestral, trimestral, semestral, anual; geradas 12 meses à frente; início e fim editáveis; **Aluguel** e **Condomínio** com valor mês a mês desde o início + previsão daqui pra frente), empréstimos (Price/SAC, taxa pela parcela; detalhe em `/emprestimos/[id]` com já paguei, parcelas com acumulado, marcar pago no vencimento, editar datas passadas e simular quitação em dia+mês — parcelas já vencidas saem, CDC no que falta; “Quitar todas” debita o mês atual), categorias com subcategoria e "essencial", visão geral com alertas, **Despesas** (tabela do mês de vencimento: flags Pago / Não pago / Atrasado gravadas em `clearedAt`, sem debitar saldo; gráfico 12 anteriores / 12 à frente / 24 meses / personalizado; clique na linha abre o editor — empréstimo abre o detalhe; lixeira também no empréstimo), **Contas a pagar** (pendências do mês, atrasadas, 12 meses à frente) e **Dashboards** (montar, salvar, 5 modelos, Sankey)
 
 ### Profissional
-- **Atividades** — lista, kanban, **fila de execução** (primeira aba), mapa mental, painel **Hoje**, lixeira, iniciar/pausar com cronômetro
+- **Atividades** — lista, kanban, **fila de execução** (primeira aba), mapa mental, painel **Hoje**, lixeira, iniciar/pausar com cronômetro, **grupos** (filtro, chip, Nuage / Pessoal / Acompanhamento David)
 - **Horas extras** — mês, lançamentos, anexos (imagem/PDF no Storage para os novos)
 - **Automações** — contatos (ex. WhatsApp)
 - **Configurações** — tipos e status de atividade + **Tokens MCP** (admin: criar/listar/revogar)
@@ -146,6 +148,8 @@ Trigger `on auth.users insert` → cria `profiles` (assim o seed do admin não e
 - `activity_statuses` — pendente / em andamento / concluída (configurável); agora também `isInProgress`
 - `activity_types`
 - `activities` — inclui `queue_order` (fila) **e** estimativa, bloco, Eisenhower, energia, contexto, tags, área, aguardando, subtarefa, recorrência, lixeira (`deletedAt`), origem, `clientKey`, autoria
+- `ActivityGroup` — grupo de tarefas: nome único por usuário (`ownerId`), `description`, `color`, `icon`, `assigneeEmail` (responsável, ex. David), `archived`
+- `ActivityGroupMember` — N:N atividade ↔ grupo (`activityId`, `groupId`, `addedAt`). Apagar o grupo apaga o vínculo, não a atividade
 - `ActivityEvent`, `ActivitySession`, `ActivityReminder`, `TimeCapacity` (8h seg–sex, 0 sáb/dom, fuso America/Sao_Paulo)
 - `mind_map_groups`, `mind_maps`
 - `activity_map_nodes`, `mind_map_shapes`, `mind_map_connections`
@@ -153,6 +157,16 @@ Trigger `on auth.users insert` → cria `profiles` (assim o seed do admin não e
 ### Pessoal
 - `challenge_items`, `challenge_days`, `challenge_day_checks`, `challenge_months`
 - `daily_habits`, `daily_days`, `daily_habit_checks`
+
+### Finanças (16 nov 2026)
+- `FinanceAccount` — conta; saldo = inicial + pagos desde `initialBalanceDate`
+- `CreditCard` — limite, `closingDay` (melhor dia de compra), `dueDay`, conta de pagamento; só os 4 últimos números
+- `CardInvoice` — ajuste de datas/observação por fatura (`cardId` + `month`); totais saem dos lançamentos
+- `FinanceCategory` — receita/despesa, 2 níveis, `essential`, `system` (33 padrão: salário, hora extra, reembolso, bônus quarter, bônus anual…; Aluguel e Condomínio filhos de Moradia)
+- `FinanceRecurrence` — regra fixa/variável; gera um lançamento por mês (`recurrenceKey`). Aluguel/condomínio: cada ocorrência tem o próprio `amountCents`; o valor da regra é a previsão daqui pra frente. Assinatura no cartão: `cardId` + sem `endDate`; cancelar (`scope=future`) apaga só faturas seguintes (`invoiceMonth` depois da aberta) e mantém o que já entrou na fatura aberta.
+- `Loan` — empréstimo/financiamento; parcelas = lançamentos de despesa com `interestCents`
+- `FinanceTransaction` — tabela-fato: `kind` income/expense/transfer/card_payment/adjustment/loan_disbursement, centavos, `date`/`paidAt` em DATE, `invoiceMonth` no cartão. Pagar fatura não conta como despesa de novo
+- `FinanceDashboard` — dashboards da tela `/financas/dashboards` (`widgets` JSON)
 
 ### Horas extras
 - `overtime_months`, `overtime_entries`
@@ -199,6 +213,9 @@ Nomes no Postgres são os do Prisma (`"WorkspaceFile"`, `"McpToken"`, …), não
 - PATCH `/api/workspaces/folders/[id]` aceita `opportunityId` (vazio desvincula)
 - `/api/activities/briefing`, `/review`, `/trash`
 - `/api/activities/:id/start|pause|complete|reopen|restore|history`
+- `/api/activity-groups` (GET lista com `openCount`/`overdueCount`, POST cria; `{ defaults: true }` cria Nuage, Pessoal e Acompanhamento David) e `/api/activity-groups/:id` (GET, PATCH, DELETE; `?archive=1` arquiva). DELETE não apaga atividades
+- `/api/activity-groups/:id/activities` (GET com `status`, `due=overdue|today`, `withinDays`, `dueBefore`, `assignee`; POST e DELETE em lote por `activityIds`)
+- `/api/financas/*` — `bootstrap`, `accounts`, `cards` (+ `cards/[id]/invoices/[month]`: GET detalhe, PATCH datas, POST pagamento), `categories`, `transactions` (POST por `mode`: one_off/card/recurring/transfer; GET `[id]` com total da compra; PATCH cartão/parcelas/`recurrence`; DELETE `?scope=one|group|future`), `recurrences` (PATCH também `startDate`), `loans` (GET/DELETE `[id]`, POST `[id]/settle` quita e debita o mês atual), `analytics?from&to`, `bills?month` (contas a pagar do mês + 12 meses), `expenses?month&from&to` (despesas do mês + janela do gráfico), `dashboards`. Lógica em `lib/finance/` (testes em `lib/finance/finance.test.ts`)
 
 Rotas de espaços/agentes/arquivos atuais **não foram quebradas**. PATCH do arquivo indexa e grava revisão. Listagens de atividade ignoram lixeira (`deletedAt`). DELETE de atividade é **soft delete**.
 
@@ -242,6 +259,10 @@ Views são baratas (não contam como Edge Function). Úteis:
 | `v_agent_overview` | **existe:** agente + prompt ativo + nº docs/chunks + propostas pendentes |
 | `v_overtime_month_totals` | soma de horas / valor por mês |
 | `v_profiles_safe` | profiles sem nada sensível, para o client |
+| `v_fin_lancamentos` | **existe:** fato com natureza (fixa/variável/pontual/parcelada/empréstimo), mês de competência e de caixa, categoria, conta/cartão |
+| `v_fin_fluxo_mensal`, `v_fin_categorias_mes` | **existem:** receitas × despesas, taxa de poupança, fixas/variáveis/cartão por mês; total por categoria |
+| `v_fin_faturas`, `v_fin_cartoes`, `v_fin_contas` | **existem:** faturas com status, limite usado, saldo e o que vence no mês |
+| `v_fin_emprestimos`, `v_fin_agenda` | **existem:** saldo devedor, juros pagos/a pagar; tudo que vai entrar ou sair |
 
 FTS: `to_tsvector` em `search_text` quando a coluna existir. Não precisa de view para isso.
 
@@ -328,7 +349,9 @@ Arquitetura: **um MCP = o escritório Nuage/JayP Cortex**. Amazon Quick conecta 
 - Agente `propostas`: `cortex("montar proposta da Tamura")` roteia para ele. Entrega: `read_document` → `get_proposal_template` → gerar HTML → `register_delivery`.
 - Tools de rascunho: `propose_document_change`, `propose_new_document`, `propose_prompt_change`, `propose_agent_config`.
 - Tools de escrita: `apply_proposal`, `reject_proposal`, `publish_prompt`, `create_document`, `update_document`, `link_knowledge`, `unlink_knowledge`, `create_agent`, `reindex_document`.
-- Tools de **atividades** (mesmo `/api/mcp`): `list_activities` (padrão `status=open`; resposta `{ activities, total, truncated, counts, note }`), `get_activity`, `search_activities`, `get_queue` (`queue` + `total`), `list_activity_statuses`, `list_activity_types`, `get_daily_briefing`, `get_weekly_review`, `plan_day` (leitura), `apply_day_plan` (escrita), `get_activity_history`, `create_activity`, `create_activities_bulk`, `update_activity`, `start_activity`, `pause_activity`, `complete_activity`, `reopen_activity`, `set_activity_status`, `delete_activity`, `restore_activity`, `queue_activity`, `unqueue_activity`, `move_in_queue`, `reorder_queue`, `reschedule_activity`, `add_reminder`, `dismiss_reminder`, `add_subtask`, `create_activity_type`, `undo_last_action`, `purge_deleted_activities` (admin).
+- Tools de **atividades** (mesmo `/api/mcp`): `list_activities` (padrão `status=open`; resposta `{ activities, total, truncated, counts, note }`; cada item traz `groupIds`/`groupNames`; `group_id` filtra), `get_activity`, `search_activities`, `get_queue` (`queue` + `total`), `list_activity_statuses`, `list_activity_types`, `get_daily_briefing`, `get_weekly_review`, `plan_day` (leitura), `apply_day_plan` (escrita), `get_activity_history`, `create_activity` (aceita `group_id` / `group_ids`), `create_activities_bulk`, `update_activity`, `start_activity`, `pause_activity`, `complete_activity`, `reopen_activity`, `set_activity_status`, `delete_activity`, `restore_activity`, `queue_activity`, `unqueue_activity`, `move_in_queue`, `reorder_queue`, `reschedule_activity`, `add_reminder`, `dismiss_reminder`, `add_subtask`, `create_activity_type`, `undo_last_action`, `purge_deleted_activities` (admin).
+- Tools de **grupos** (JayPCortexChat, descrições em PT, schema só string): `create_group`, `update_group`, `delete_group` (`confirm=true`; `archive=true` só arquiva; não apaga tarefas), `list_groups`, `get_group`, `add_activities_to_group`, `remove_activities_from_group`, `list_group_activities` (`status`, `due_before`, `due_within_days`, `overdue`, `assignee`). Seed: migration `20261125120000_activity_groups` e `npm run seed:activity-groups`.
+- Tools de **finanças** (mesmo servidor, schema só string, valores em reais): `list_expenses`, `get_expense`, `search_expenses` (já existe?), `expense_report`, `finance_snapshot`, `list_bills`, `list_finance_options`, `list_recurring_expenses`, `list_loans`, `finance_analytics`, `create_expense`, `create_recurring_expense`, `create_card_expense`, `create_housing_expense`, `update_expense`, `pay_expense` (marca Pago via `clearedAt` e não debita), `delete_expense` (`confirm=true`; `scope` one/group/future), `create_income`, `create_transfer`, `pay_card_invoice` (este debita a conta). Pedido de despesa no `cortex` devolve totais do mês em `live_data`. Criar conta, cartão ou empréstimo continua na tela.
 - Toda tool MCP declara `title` em PT-BR e `annotations` (hints: `readOnlyHint`, `destructiveHint`, `idempotentHint`).
 - Prompts MCP: `cortex_start`, `briefing_do_dia`, `capturar_tarefas`.
 - Agenda Outlook: **não** integrada nesta rodada. O cliente envia `busy_blocks`. Graph direto = futuro.

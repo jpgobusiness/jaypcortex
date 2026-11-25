@@ -15,6 +15,7 @@ import { toDateInput } from "@/lib/format";
 import {
   ACTIVITY_PRIORITY_LABELS,
   type Activity,
+  type ActivityGroupSummary,
   type ActivityPriority,
   type ActivityStatusDef,
   type ActivityType,
@@ -26,6 +27,7 @@ type Props = {
   onSaved: (activity: Activity) => void;
   types: ActivityType[];
   statuses: ActivityStatusDef[];
+  groups?: ActivityGroupSummary[];
   activity?: Activity | null;
 };
 
@@ -71,6 +73,7 @@ export default function ActivityModal({
   onSaved,
   types,
   statuses,
+  groups,
   activity,
 }: Props) {
   const isEdit = Boolean(activity);
@@ -78,11 +81,22 @@ export default function ActivityModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<{ id: string; type: string; at: string }[]>([]);
+  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [loadedGroups, setLoadedGroups] = useState<ActivityGroupSummary[]>([]);
+  const groupOptions = groups ?? loadedGroups;
+
+  useEffect(() => {
+    if (!open || groups) return;
+    apiGet<ActivityGroupSummary[]>("/api/activity-groups")
+      .then(setLoadedGroups)
+      .catch(() => setLoadedGroups([]));
+  }, [open, groups]);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
     setHistory([]);
+    setGroupIds(activity?.groupIds ?? activity?.groups?.map((group) => group.id) ?? []);
     if (activity) {
       setForm({
         title: activity.title,
@@ -140,6 +154,7 @@ export default function ActivityModal({
         .filter(Boolean),
       area: form.area || null,
       waitingOn: form.waitingOn || null,
+      groupIds,
     };
     try {
       const saved =
@@ -250,6 +265,34 @@ export default function ActivityModal({
             />
           </div>
         </FormRow>
+
+        <div>
+          <Label>Grupos</Label>
+          {groupOptions.length === 0 ? (
+            <p className="text-xs text-[var(--muted)]">Nenhum grupo cadastrado.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {groupOptions.map((group) => {
+                const checked = groupIds.includes(group.id);
+                return (
+                  <label key={group.id} className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] px-2 py-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setGroupIds((current) =>
+                          checked ? current.filter((id) => id !== group.id) : [...current, group.id]
+                        );
+                      }}
+                    />
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: group.color || "#6366f1" }} />
+                    {group.name}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div>
           <Label htmlFor="notes">Observações</Label>

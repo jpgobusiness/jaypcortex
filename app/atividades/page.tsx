@@ -20,7 +20,8 @@ import ActivityMindMap from "@/components/activities/ActivityMindMap";
 import TodayBriefing from "@/components/activities/TodayBriefing";
 import { apiGet, apiPatch, apiDelete, apiPost } from "@/lib/fetcher";
 import { formatDate } from "@/lib/format";
-import type { Activity, ActivityStatusDef, ActivityType } from "@/lib/types";
+import type { Activity, ActivityGroupSummary, ActivityStatusDef, ActivityType } from "@/lib/types";
+import ActivityGroupsBar, { GroupChip } from "@/components/activities/ActivityGroups";
 
 type Section = "map" | "activities";
 
@@ -33,6 +34,8 @@ export default function AtividadesPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [types, setTypes] = useState<ActivityType[]>([]);
   const [statuses, setStatuses] = useState<ActivityStatusDef[]>([]);
+  const [groups, setGroups] = useState<ActivityGroupSummary[]>([]);
+  const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const section = sectionFromParam(searchParams.get("secao"));
@@ -43,12 +46,21 @@ export default function AtividadesPage() {
   const [editing, setEditing] = useState<Activity | null>(null);
   const [trash, setTrash] = useState<Activity[]>([]);
 
+  const loadGroups = useCallback(async () => {
+    try {
+      setGroups(await apiGet<ActivityGroupSummary[]>("/api/activity-groups"));
+    } catch {
+      setGroups([]);
+    }
+  }, []);
+
   const loadActivities = useCallback(async () => {
     setActivities(await apiGet<Activity[]>("/api/activities"));
     if (tab === "trash") {
       setTrash(await apiGet<Activity[]>("/api/activities/trash"));
     }
-  }, [tab]);
+    await loadGroups();
+  }, [tab, loadGroups]);
 
   const reload = useCallback(async () => {
     await loadActivities();
@@ -65,10 +77,11 @@ export default function AtividadesPage() {
       setActivities(a);
       setTypes(t);
       setStatuses(st);
+      await loadGroups();
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadGroups]);
 
   useEffect(() => {
     loadAll();
@@ -86,20 +99,27 @@ export default function AtividadesPage() {
     [statuses]
   );
 
+  const scoped = useMemo(() => {
+    if (!groupFilter) return activities;
+    return activities.filter((activity) =>
+      (activity.groupIds ?? activity.groups?.map((group) => group.id) ?? []).includes(groupFilter)
+    );
+  }, [activities, groupFilter]);
+
   const filtered = useMemo(
     () =>
       tab === "all" || tab === "queue" || tab === "trash"
-        ? activities
-        : activities.filter((a) => a.status === tab),
-    [activities, tab]
+        ? scoped
+        : scoped.filter((a) => a.status === tab),
+    [scoped, tab]
   );
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: activities.length };
+    const c: Record<string, number> = { all: scoped.length };
     for (const s of statuses) c[s.key] = 0;
-    for (const a of activities) c[a.status] = (c[a.status] ?? 0) + 1;
+    for (const a of scoped) c[a.status] = (c[a.status] ?? 0) + 1;
     return c;
-  }, [activities, statuses]);
+  }, [scoped, statuses]);
 
   async function toggle(a: Activity) {
     const currentIsDone = statusByKey.get(a.status)?.isDone ?? false;
@@ -161,6 +181,12 @@ export default function AtividadesPage() {
                 if (found) openActivityEdit(found);
               }}
             />
+            <ActivityGroupsBar
+              groups={groups}
+              selectedId={groupFilter}
+              onSelect={setGroupFilter}
+              onChanged={loadGroups}
+            />
             <ActivitiesSection
             loading={loading}
             tab={tab}
@@ -171,7 +197,7 @@ export default function AtividadesPage() {
             statuses={statuses}
             statusByKey={statusByKey}
             filtered={filtered}
-            activities={activities}
+            activities={scoped}
             trash={trash}
             onToggle={toggle}
             onRemove={remove}
@@ -189,6 +215,7 @@ export default function AtividadesPage() {
         onSaved={reload}
         types={types}
         statuses={statuses}
+        groups={groups}
         activity={editing}
       />
     </div>
@@ -290,6 +317,9 @@ function ActivitiesSection({ loading, tab, setTab, view, setView, counts, status
                       {a.type && (<span className="rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ backgroundColor: `${a.type.color}1a`, color: a.type.color }}>{a.type.name}</span>)}
                       {sdef && <StatusBadge name={sdef.name} color={sdef.color} />}
                       <PriorityBadge priority={a.priority} />
+                      {(a.groups ?? []).map((group) => (
+                        <GroupChip key={group.id} name={group.name} color={group.color} />
+                      ))}
                       {a.dueDate && (<span className="text-[11px] text-[var(--muted)]">Prazo: {formatDate(a.dueDate)}</span>)}
                     </div>
                   </div>

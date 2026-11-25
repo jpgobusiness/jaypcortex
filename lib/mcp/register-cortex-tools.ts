@@ -9,6 +9,10 @@ import { hasScope, type McpScope } from "@/lib/mcp/tokens";
 import { busyBlocksJson } from "@/lib/mcp/activity-schemas";
 import { readMeta, type ToolServer } from "@/lib/mcp/annotations";
 import { parseBusyBlocks } from "@/lib/mcp/quick-compat";
+import { buildSuggestedTools } from "@/lib/cortex/suggested-tools";
+import { monthOf, todayYmd } from "@/lib/finance/dates";
+import { expenseLive, financeToolPlan, isFinanceAsk, monthFromRequest } from "@/lib/finance/mcp-logic";
+import { getExpenses } from "@/lib/finance/service";
 
 function text(data: unknown) {
   return { content: [{ type: "text" as const, text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }] };
@@ -27,7 +31,35 @@ const TOOL_GUIDE: Record<string, string> = {
   get_weekly_review: "Revisão da semana.",
   plan_day: "Encaixar tarefas nos horários livres (só leitura). Para gravar use apply_day_plan.",
   apply_day_plan: "Grava o plano do dia nas tarefas.",
-  create_activity: "Criar uma tarefa. Datas em PT-BR.",
+  create_activity: "Criar uma tarefa. Datas em PT-BR. group_id coloca no grupo.",
+  create_group: "Criar grupo de tarefas. Nome único por usuário.",
+  list_groups: "Listar grupos com abertas e atrasadas.",
+  get_group: "Ver um grupo.",
+  update_group: "Editar grupo (nome, cor, responsável, arquivar).",
+  delete_group: "Apaga o grupo. As tarefas continuam. confirm=true.",
+  add_activities_to_group: "Colocar tarefas num grupo.",
+  remove_activities_from_group: "Tirar tarefas do grupo sem apagá-las.",
+  list_group_activities: "Tarefas de um grupo, com prazo e responsável.",
+  list_expenses: "Despesas do mês, com totais em reais. No cartão o mês é o da fatura.",
+  get_expense: "Uma despesa: valor, vencimento e se está paga.",
+  search_expenses: "Descobrir se a despesa já existe e em que data.",
+  expense_report: "Série mensal pronta para dashboard. Use os totais.",
+  finance_snapshot: "Saldo, faturas e totais de despesa do mês.",
+  list_bills: "Contas a pagar do mês, com vencimento.",
+  list_finance_options: "Nomes de contas, cartões e categorias antes de criar.",
+  list_recurring_expenses: "O que se repete todo mês, inclusive assinatura sem fim.",
+  list_loans: "Saldo e parcelas dos empréstimos.",
+  finance_analytics: "Receita, despesa e resultado por mês, prontos para gráfico.",
+  create_expense: "Despesa avulsa. Valor em reais. paid=true debita a conta.",
+  create_recurring_expense: "Despesa que se repete. Sem end_date não acaba.",
+  create_card_expense: "Compra no cartão, à vista ou parcelada.",
+  create_housing_expense: "Aluguel ou condomínio mensal.",
+  update_expense: "Corrigir valor, data, categoria ou conta.",
+  pay_expense: "Marca Pago na aba. Não debita o saldo de novo.",
+  delete_expense: "Apaga. confirm=true. Não apaga parcela de empréstimo.",
+  create_income: "Receita na conta.",
+  create_transfer: "Transferência entre duas contas.",
+  pay_card_invoice: "Paga a fatura e debita a conta. Diferente de pay_expense.",
   create_activities_bulk: "Criar até 30 tarefas.",
   update_activity: "Editar campos.",
   start_activity: "Iniciar cronômetro.",
@@ -126,6 +158,23 @@ export function registerCortexTools(
         route_log_id = log.id;
       } catch (err) {
         console.error("cortex route log", err);
+      }
+      if (isFinanceAsk(request)) {
+        const suggested = await buildSuggestedTools({
+          intent: { key: "despesas", mode: "acao", tools: financeToolPlan(request) },
+          request,
+          scopes: ctx.scopes,
+        });
+        pack.suggested_tools = suggested.tools;
+        pack.mode = "acao";
+        pack.intent = { key: "despesas", mode: "acao" };
+        pack.instructions_for_client = "Pedido de finanças. Valores em reais (89,90). pay_expense só marca Pago na aba e não debita a conta. Para dashboard use expense_report e finance_analytics: os totais já vêm prontos.";
+        try {
+          const month = monthFromRequest(request, todayYmd()) ?? monthOf(todayYmd());
+          pack.live_data = expenseLive(await getExpenses(month));
+        } catch (err) {
+          pack.live_data = { error: err instanceof Error ? err.message : "falha despesas" };
+        }
       }
       return { ...pack, route_log_id };
     });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Trash2, Link2, GripVertical } from "lucide-react";
 import { PriorityBadge } from "@/components/activities/badges";
+import { GroupChip } from "@/components/activities/ActivityGroups";
 import { apiPatch, apiDelete } from "@/lib/fetcher";
 import { formatDate } from "@/lib/format";
 import type { Activity, ActivityStatusDef } from "@/lib/types";
@@ -169,6 +170,9 @@ export default function KanbanBoard({
                               </span>
                             )}
                             <PriorityBadge priority={a.priority} />
+                            {(a.groups ?? []).map((group) => (
+                              <GroupChip key={group.id} name={group.name} color={group.color} />
+                            ))}
                           </div>
 
                           {/* Fallback touch: mudar status sem drag */}

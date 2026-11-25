@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { ok, badRequest, serverError, str, dt } from "@/lib/api";
 import { createActivity } from "@/lib/activities/service";
 import { requestActor } from "@/lib/activities/actor-http";
+import { activityGroupInclude, withGroupFields } from "@/lib/activities/groups";
 
 export async function GET(req: Request) {
   try {
@@ -9,16 +10,18 @@ export async function GET(req: Request) {
     const opportunityId = searchParams.get("opportunityId");
     const status = searchParams.get("status");
     const includeDeleted = searchParams.get("includeDeleted") === "1";
+    const groupId = searchParams.get("groupId");
     const activities = await prisma.activity.findMany({
       where: {
         ...(opportunityId ? { opportunityId } : {}),
         ...(status ? { status } : {}),
+        ...(groupId ? { groupMemberships: { some: { groupId } } } : {}),
         ...(includeDeleted ? {} : { deletedAt: null }),
       },
-      include: { type: true, opportunity: { select: { id: true, name: true } } },
+      include: { type: true, opportunity: { select: { id: true, name: true } }, ...activityGroupInclude },
       orderBy: [{ status: "asc" }, { dueDate: "asc" }, { createdAt: "desc" }],
     });
-    return ok(activities);
+    return ok(activities.map((row) => withGroupFields(row)));
   } catch (e) {
     return serverError(e);
   }
@@ -49,10 +52,11 @@ export async function POST(req: Request) {
         area: str(body.area),
         waitingOn: str(body.waitingOn),
         source: "ui",
+        groupIds: Array.isArray(body.groupIds) ? body.groupIds.map(String) : undefined,
       },
       actor
     );
-    return ok(created.activity, 201);
+    return ok(withGroupFields(created.activity), 201);
   } catch (e) {
     return serverError(e);
   }

@@ -3,7 +3,12 @@
 > **Fonte da verdade do estado atual:** [`docs/contexto-plataforma.md`](./contexto-plataforma.md).
 > Este arquivo é o plano de discussão (auth, tabelas, edge). Se os dois divergirem, vale o arquivo principal.
 
-Última leitura do código: 6 nov 2026.
+Última leitura do código: 25 nov 2026.
+
+## Histórico de mudanças
+
+- 25 nov 2026 — **Finanças no MCP.** O Quick opera despesas no `/api/mcp`: listar, buscar (“já existe?”), relatório com totais prontos, criar avulsa/recorrente/cartão/aluguel, atualizar, marcar Pago (`clearedAt`, não debita) e apagar (`confirm=true`). Também receita, transferência, contas a pagar, faturas e empréstimos em leitura. Schema só string.
+- 25 nov 2026 — **Grupos de atividade.** Tabelas `ActivityGroup` e `ActivityGroupMember` (N:N). Nome único por usuário (`ownerId`). Responsável em `assigneeEmail` (Acompanhamento David → `dpsilva@nuageit.com.br`). RLS `authenticated_active_all` via `is_active_user()`. API `/api/activity-groups`. MCP: `create_group`, `update_group`, `delete_group`, `list_groups`, `get_group`, `add_activities_to_group`, `remove_activities_from_group`, `list_group_activities`. Apagar grupo não apaga atividades. `list`/`get` de atividade devolvem `groupIds` e `groupNames`; `create_activity` aceita `group_id`.
 
 ---
 
@@ -123,8 +128,22 @@ Nomes em **snake_case** no Postgres (Prisma pode mapear). IDs hoje são `cuid` s
 - `activity_statuses` — pendente / em andamento / concluída (configurável)
 - `activity_types`
 - `activities` — inclui `queue_order` (fila)
+- `ActivityGroup` — grupo: `name` único por usuário, `description`, `color`, `icon`, `assigneeEmail` (responsável), `archived`, `ownerId`
+- `ActivityGroupMember` — N:N (`activityId`, `groupId`, `addedAt`). Uma atividade pode estar em vários grupos. Apagar o grupo só remove o vínculo
 - `mind_map_groups`, `mind_maps`
 - `activity_map_nodes`, `mind_map_shapes`, `mind_map_connections`
+
+#### API de grupos (25 nov 2026)
+- `GET/POST /api/activity-groups` — lista com `openCount` e `overdueCount`; cria. `POST { defaults: true }` grava Nuage, Pessoal e Acompanhamento David
+- `GET/PATCH/DELETE /api/activity-groups/:id` — `DELETE ?archive=1` arquiva. Apagar não apaga atividades
+- `GET/POST/DELETE /api/activity-groups/:id/activities` — lista com `status`, `due=overdue|today`, `withinDays`, `dueBefore`, `assignee`; adiciona e remove em lote
+- `GET/POST /api/activities` e `PATCH /api/activities/:id` devolvem `groups`, `groupIds`, `groupNames`. Criar/editar aceita `groupIds`
+
+#### MCP de grupos (25 nov 2026)
+Tools em `/api/mcp` (JayPCortexChat), descrições em português, entrada só string: `create_group`, `update_group`, `delete_group` (`confirm=true`; `archive=true` arquiva), `list_groups`, `get_group`, `add_activities_to_group`, `remove_activities_from_group`, `list_group_activities` (`status`, `due_before`, `due_within_days`, `overdue`, `assignee`). `list_activities` e `get_activity` trazem `groupIds`/`groupNames`. `create_activity` aceita `group_id`. RLS: `authenticated_active_all` com `public.is_active_user()`.
+
+#### MCP de finanças (25 nov 2026)
+Mesmo `/api/mcp`, schema só string, valores em reais (`89,90`). Despesas: `list_expenses`, `get_expense`, `search_expenses`, `expense_report` (série mensal pronta para dashboard), `create_expense`, `create_recurring_expense`, `create_card_expense`, `create_housing_expense`, `update_expense`, `pay_expense` (`clearedAt`, não debita saldo), `delete_expense` (`confirm=true`, `scope` one/group/future). Apoio: `finance_snapshot`, `list_bills`, `list_finance_options`, `list_recurring_expenses`, `list_loans`, `finance_analytics`, `create_income`, `create_transfer`, `pay_card_invoice`. Criar conta, cartão ou empréstimo segue na tela `/financas`.
 
 ### Pessoal
 - `challenge_items`, `challenge_days`, `challenge_day_checks`, `challenge_months`

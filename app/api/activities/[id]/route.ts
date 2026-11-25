@@ -1,6 +1,7 @@
 import { ok, serverError, str, dt, num, badRequest } from "@/lib/api";
 import { restoreActivity, softDelete, updateActivity } from "@/lib/activities/service";
 import { requestActor } from "@/lib/activities/actor-http";
+import { withGroupFields } from "@/lib/activities/groups";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -30,10 +31,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
         status: body.status !== undefined ? str(body.status) ?? undefined : undefined,
         scheduledStart: body.scheduledStart !== undefined ? body.scheduledStart : undefined,
         scheduledEnd: body.scheduledEnd !== undefined ? body.scheduledEnd : undefined,
+        groupIds: body.groupIds !== undefined
+          ? (Array.isArray(body.groupIds) ? body.groupIds.map(String) : [])
+          : undefined,
       },
       actor
     );
-    return ok(updated.activity);
+    return ok(withGroupFields(updated.activity));
   } catch (e) {
     return serverError(e);
   }

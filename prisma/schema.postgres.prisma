@@ -146,6 +146,7 @@ model Activity {
   events            ActivityEvent[]
   sessions          ActivitySession[]
   reminders         ActivityReminder[]
+  groupMemberships  ActivityGroupMember[]
 
   @@index([opportunityId])
   @@index([status])
@@ -196,6 +197,40 @@ model ActivityReminder {
 
   @@index([activityId, remindAt])
   @@index([remindAt])
+}
+
+/// Grupo de tarefas (Nuage, Pessoal, acompanhamento). Nome único por usuário.
+/// Apagar o grupo remove só os vínculos; as atividades continuam.
+model ActivityGroup {
+  id            String                @id @default(cuid())
+  name          String
+  description   String?
+  color         String?               @default("#6366f1")
+  icon          String?
+  /// Dono do grupo (profiles.id). O nome é único dentro deste usuário.
+  ownerId       String?               @db.Uuid
+  /// Responsável associado ao grupo (ex.: David). Não é o dono do login.
+  assigneeEmail String?
+  archived      Boolean               @default(false)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  members       ActivityGroupMember[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId, archived])
+  @@index([assigneeEmail])
+}
+
+/// Vínculo N:N. Uma atividade pode estar em mais de um grupo.
+model ActivityGroupMember {
+  activityId String
+  groupId    String
+  addedAt    DateTime      @default(now())
+  activity   Activity      @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  group      ActivityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([activityId, groupId])
+  @@index([groupId])
 }
 
 model TimeCapacity {
@@ -817,4 +852,212 @@ model AuditLog {
 
   @@index([at])
   @@index([entity, entityId])
+}
+
+// ---------------------------------------------------------------------------
+// Finanças pessoais (módulo /financas). Valores em centavos (Int) para não
+// perder precisão. Datas civis em DATE. As views v_fin_* (migration
+// 20261116190000_finance) são a camada pronta para dashboards.
+// ---------------------------------------------------------------------------
+
+/// Conta onde o dinheiro fica: corrente, poupança, carteira, investimento, benefício.
+model FinanceAccount {
+  id                  String               @id @default(cuid())
+  name                String
+  type                String               @default("checking") // checking | savings | cash | investment | benefit | other
+  institution         String               @default("")
+  color               String               @default("#7b68ee")
+  /// Saldo informado em `initialBalanceDate`. Lançamentos pagos antes dessa data
+  /// ficam só no histórico (já estavam no saldo informado).
+  initialBalanceCents Int                  @default(0)
+  initialBalanceDate  DateTime             @default(now()) @db.Date
+  includeInTotals     Boolean              @default(true)
+  archived            Boolean              @default(false)
+  order               Int                  @default(0)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  transactions        FinanceTransaction[] @relation("FinanceTransactionAccount")
+  incomingTransfers   FinanceTransaction[] @relation("FinanceTransactionToAccount")
+  cards               CreditCard[]
+  recurrences         FinanceRecurrence[]
+  loans               Loan[]
+}
+
+/// Cartão de crédito. As faturas saem dos lançamentos (cardId + invoiceMonth).
+model CreditCard {
+  id               String               @id @default(cuid())
+  name             String
+  brand            String               @default("other") // visa | mastercard | elo | amex | hipercard | other
+  last4            String?
+  color            String               @default("#15171c")
+  limitCents       Int                  @default(0)
+  /// Dia em que a fatura fecha = melhor dia de compra: compras a partir dele vão para a fatura seguinte.
+  closingDay       Int
+  dueDay           Int
+  paymentAccountId String?
+  paymentAccount   FinanceAccount?      @relation(fields: [paymentAccountId], references: [id], onDelete: SetNull)
+  archived         Boolean              @default(false)
+  order            Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  transactions     FinanceTransaction[]
+  invoices         CardInvoice[]
+  recurrences      FinanceRecurrence[]
+}
+
+/// Ajustes de uma fatura (datas reais do banco, observação). Totais saem dos lançamentos.
+model CardInvoice {
+  id          String     @id @default(cuid())
+  cardId      String
+  card        CreditCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  month       String // "YYYY-MM" do vencimento
+  closingDate DateTime?  @db.Date
+  dueDate     DateTime?  @db.Date
+  notes       String     @default("")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([cardId, month])
+}
+
+/// Categoria de receita ou despesa (até 2 níveis). `system` marca as categorias padrão.
+model FinanceCategory {
+  id           String               @id @default(cuid())
+  name         String
+  kind         String // income | expense
+  icon         String               @default("tag")
+  color        String               @default("#94a3b8")
+  parentId     String?
+  parent       FinanceCategory?     @relation("FinanceCategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children     FinanceCategory[]    @relation("FinanceCategoryTree")
+  /// Gasto essencial (moradia, saúde...). Base para a análise 50/30/20.
+  essential    Boolean              @default(false)
+  system       String?              @unique
+  archived     Boolean              @default(false)
+  order        Int                  @default(0)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  transactions FinanceTransaction[]
+  recurrences  FinanceRecurrence[]
+  loans        Loan[]
+
+  @@index([kind, order])
+}
+
+/// Regra de lançamento recorrente (salário, aluguel, luz...). Gera um lançamento por ocorrência.
+model FinanceRecurrence {
+  id             String               @id @default(cuid())
+  kind           String // income | expense
+  type           String               @default("fixed") // fixed (valor fixo) | variable (valor estimado)
+  description    String
+  amountCents    Int
+  categoryId     String?
+  category       FinanceCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  accountId      String?
+  account        FinanceAccount?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  cardId         String?
+  card           CreditCard?          @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  intervalMonths Int                  @default(1) // 1 mensal, 2 bimestral, 3 trimestral, 6 semestral, 12 anual
+  dayOfMonth     Int
+  startDate      DateTime             @db.Date
+  endDate        DateTime?            @db.Date
+  /// Última ocorrência ("YYYY-MM") já gerada como lançamento.
+  generatedUntil String?
+  active         Boolean              @default(true)
+  tags           String[]             @default([])
+  notes          String               @default("")
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  transactions   FinanceTransaction[]
+}
+
+/// Empréstimo ou financiamento. As parcelas são lançamentos de despesa (loanId).
+model Loan {
+  id               String               @id @default(cuid())
+  name             String
+  lender           String               @default("")
+  type             String               @default("personal") // personal | payroll | vehicle | mortgage | person | other
+  principalCents   Int
+  /// IOF + tarifas + seguro: entram no CET.
+  feesCents        Int                  @default(0)
+  /// Juros em % ao mês (ex.: 1.99).
+  monthlyRate      Float                @default(0)
+  amortization     String               @default("price") // price | sac
+  installmentCount Int
+  /// Parcela da tabela Price (informada ou calculada). Nulo no SAC.
+  installmentCents Int?
+  firstDueDate     DateTime             @db.Date
+  contractDate     DateTime?            @db.Date
+  /// Parcelas pagas antes do cadastro: aparecem na tabela, mas não viram lançamento.
+  paidBeforeCount  Int                  @default(0)
+  accountId        String?
+  account          FinanceAccount?      @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  categoryId       String?
+  category         FinanceCategory?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  notes            String               @default("")
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  transactions     FinanceTransaction[]
+}
+
+/// Lançamento: receita, despesa, transferência, pagamento de fatura, ajuste de saldo
+/// ou entrada de empréstimo. É a tabela-fato dos dashboards.
+model FinanceTransaction {
+  id                 String             @id @default(cuid())
+  kind               String // income | expense | transfer | card_payment | adjustment | loan_disbursement
+  description        String
+  /// Sempre positivo, exceto em `adjustment` (sinal = entrou ou saiu da conta).
+  amountCents        Int
+  /// Data do lançamento: vencimento, compra ou recebimento.
+  date               DateTime           @db.Date
+  /// Quando foi pago/recebido de verdade (sai do saldo). Nulo = pendente. Compras no cartão não usam.
+  paidAt             DateTime?          @db.Date
+  /// Marcado como pago na aba Despesas. Não debita o saldo da conta.
+  clearedAt          DateTime?          @db.Date
+  accountId          String?
+  account            FinanceAccount?    @relation("FinanceTransactionAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  toAccountId        String?
+  toAccount          FinanceAccount?    @relation("FinanceTransactionToAccount", fields: [toAccountId], references: [id], onDelete: Restrict)
+  cardId             String?
+  card               CreditCard?        @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  /// Fatura "YYYY-MM" (compras no cartão e pagamentos de fatura).
+  invoiceMonth       String?
+  categoryId         String?
+  category           FinanceCategory?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  recurrenceId       String?
+  recurrence         FinanceRecurrence? @relation(fields: [recurrenceId], references: [id], onDelete: SetNull)
+  /// Ocorrência "YYYY-MM" da recorrência (evita gerar duas vezes).
+  recurrenceKey      String?
+  /// Compra parcelada: o mesmo id em todas as parcelas.
+  installmentGroupId String?
+  installmentNumber  Int?
+  installmentCount   Int?
+  loanId             String?
+  loan               Loan?              @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  /// Parte de juros da parcela do empréstimo.
+  interestCents      Int?
+  tags               String[]           @default([])
+  notes              String             @default("")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@unique([recurrenceId, recurrenceKey])
+  @@index([date])
+  @@index([kind, date])
+  @@index([accountId, date])
+  @@index([toAccountId])
+  @@index([cardId, invoiceMonth])
+  @@index([categoryId])
+  @@index([loanId])
+  @@index([installmentGroupId])
+}
+
+/// Dashboard montado em /financas/dashboards. `widgets` = lista de visões em JSON.
+model FinanceDashboard {
+  id        String   @id @default(cuid())
+  name      String
+  widgets   Json     @default("[]")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

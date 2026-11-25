@@ -10,6 +10,8 @@ const LIVE_ACTIVITY_TOOLS = [
   "queue_activity", "unqueue_activity", "move_in_queue", "reorder_queue",
   "reschedule_activity", "add_reminder", "dismiss_reminder", "add_subtask",
   "create_activity_type", "undo_last_action", "purge_deleted_activities",
+  "create_group", "update_group", "delete_group", "list_groups", "get_group",
+  "add_activities_to_group", "remove_activities_from_group", "list_group_activities",
 ];
 
 export const GESTAO_TEMPO_ROUTING: AgentRouting = {
@@ -36,6 +38,17 @@ export const GESTAO_TEMPO_ROUTING: AgentRouting = {
         "o que esta atrasado",
         "tarefas da semana",
         "lista a fila",
+      ],
+    },
+    {
+      key: "grupos_atividade",
+      mode: "acao",
+      tools: ["list_groups", "get_group", "list_group_activities", "create_group"],
+      examples: [
+        "lista os grupos de tarefa",
+        "tarefas do grupo nuage",
+        "cria um grupo de atividades",
+        "o que esta atrasado no acompanhamento david",
       ],
     },
     {

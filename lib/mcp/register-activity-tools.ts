@@ -87,7 +87,7 @@ export function registerActivityTools(
 
   server.registerTool("list_activities", {
     ...readMeta("Listar tarefas"),
-    description: "Dados vivos de tarefas (seção Atividades). Padrão: pendentes (status=open). NÃO trate o tamanho da lista como o total — use os campos total, truncated e counts. Se truncated=true, há mais. Filtros: status (key|open|done|all), priority, due (overdue|today|tomorrow|this_week|next_7d|no_date), type, tags, area, q, in_queue, include_deleted, sort (score|due|created|queue). Não use search_knowledge para isso.",
+    description: "Dados vivos de tarefas (seção Atividades). Padrão: pendentes (status=open). NÃO trate o tamanho da lista como o total — use os campos total, truncated e counts. Se truncated=true, há mais. Filtros: status (key|open|done|all), priority, due (overdue|today|tomorrow|this_week|next_7d|no_date), type, tags, area, q, in_queue, include_deleted, group_id, sort (score|due|created|queue). Cada tarefa traz groupIds e groupNames. Não use search_knowledge para isso.",
     inputSchema: z.object({
       status: z.string().optional(),
       priority: z.string().optional(),
@@ -98,6 +98,7 @@ export function registerActivityTools(
       q: z.string().optional(),
       in_queue: z.boolean().optional(),
       include_deleted: z.boolean().optional(),
+      group_id: z.string().optional(),
       sort: z.string().optional(),
       limit: z.number().optional(),
     }),
@@ -113,6 +114,7 @@ export function registerActivityTools(
       q: args.q ? String(args.q) : undefined,
       in_queue: args.in_queue === true,
       include_deleted: args.include_deleted === true,
+      groupId: args.group_id ? String(args.group_id) : undefined,
       sort: args.sort ? String(args.sort) : "score",
       limit: typeof args.limit === "number" ? args.limit : 20,
     }));
@@ -120,7 +122,7 @@ export function registerActivityTools(
 
   server.registerTool("get_activity", {
     ...readMeta("Ver tarefa"),
-    description: "Dados vivos de tarefas (seção Atividades). Detalhe da tarefa (id ou query), subtarefas, histórico, sessões e lembretes.",
+    description: "Dados vivos de tarefas (seção Atividades). Detalhe da tarefa (id ou query), subtarefas, histórico, sessões, lembretes, groupIds e groupNames.",
     inputSchema: z.object(idOrQuery),
   }, async (args) => {
     assertScope(ctx.scopes, "read");
@@ -270,12 +272,25 @@ export function registerActivityTools(
       clientKey: args.client_key ? String(args.client_key) : undefined,
       addToQueue: queuePosition(args.add_to_queue),
       source: args.source ? String(args.source) : undefined,
+      ...groupIdsFrom(args),
     };
+  }
+
+  function groupIdsFrom(args: Record<string, unknown>) {
+    const hasGroup = ["group_id", "groupId", "group_ids", "groupIds"].some(
+      (key) => args[key] !== undefined && String(args[key]).trim() !== ""
+    );
+    if (!hasGroup) return {};
+    const ids = [
+      ...asStringList(args.group_ids ?? args.groupIds),
+      ...(args.group_id || args.groupId ? [String(args.group_id || args.groupId)] : []),
+    ].map((id) => id.trim()).filter(Boolean);
+    return { groupIds: [...new Set(ids)] };
   }
 
   server.registerTool("create_activity", {
     ...writeMeta("Criar tarefa"),
-    description: "Cria uma tarefa. Campos: title (obrigatório), priority, due (PT-BR: hoje/sexta/dia 15), notes, add_to_queue (texto da posição, '1' = topo), client_key.",
+    description: "Cria uma tarefa. Campos: title (obrigatório), priority, due (PT-BR: hoje/sexta/dia 15), notes, add_to_queue (texto da posição, '1' = topo), client_key, group_id (um grupo) ou group_ids (vários, separados por vírgula).",
     inputSchema: createShape,
   }, async (args) => {
     assertScope(ctx.scopes, "write");

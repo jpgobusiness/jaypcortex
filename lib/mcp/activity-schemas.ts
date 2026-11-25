@@ -24,6 +24,8 @@ export const createActivityShape = z.object({
   notes: z.string().optional(),
   add_to_queue: z.string().optional(),
   client_key: z.string().optional(),
+  group_id: z.string().optional(),
+  group_ids: z.string().optional(),
 }).passthrough();
 
 export const createActivitiesBulkShape = z.object({
