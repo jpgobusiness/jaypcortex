@@ -7,15 +7,15 @@
 > Depois de cada melhoria no produto, o **estado atual** precisa refletir o código — mesmo que o usuário não peça.
 > Plano (Supabase, auth, edge) fica nas seções de discussão. Quando um item sair do papel, mover para o estado atual.
 
-Última atualização: 25 nov 2026 (MCP de finanças)
+Última atualização: 26 nov 2026 (árvore de espaços)
 
 ## Últimas mudanças
 
+- 26 nov 2026 — **Espaços aninhados:** pastas dentro de pastas e páginas dentro de páginas (profundidade 8). Espaço genérico cria, renomeia e arquiva sem agente. MCP: `create_workspace`, `create_folder`, `create_file` (`parent_file`), `create_structure_bulk` (JSON idempotente), `get_workspace_tree`, `move_*`, `delete_*` (`confirm=true`). Sala de agente e Oportunidades não se arquivam. `search_knowledge` filtra por espaço/pasta e devolve o caminho. Na tela: árvore, breadcrumb e “+ subpágina”. Sem arrastar. Espaço **Visão de Negócios** já está no banco: 17 pastas (00 Finanças … 16 Glossário) e o arquivo EBITDA com Fórmula, Exemplos e Perguntas para o cliente.
 - 25 nov 2026 — **Finanças no MCP (Quick):** despesas de ponta a ponta no mesmo `/api/mcp`. Leitura: `list_expenses`, `get_expense`, `search_expenses`, `expense_report`, `finance_snapshot`, `list_bills`, `finance_analytics` (totais em reais e centavos, prontos para dashboard). Escrita: `create_expense`, `create_recurring_expense` (sem `end_date` = assinatura), `create_card_expense`, `create_housing_expense`, `update_expense`, `pay_expense` (`clearedAt`, não debita), `delete_expense` (`confirm=true`). Também receita, transferência e pagamento de fatura. Schema só string.
 - 25 nov 2026 — **Atividades · Grupos:** `ActivityGroup` + `ActivityGroupMember` (N:N). Nome único por usuário. Responsável em `assigneeEmail` (Acompanhamento David → dpsilva@nuageit.com.br). Apagar o grupo não apaga tarefas. API `/api/activity-groups` e tools MCP `create_group`, `update_group`, `delete_group`, `list_groups`, `get_group`, `add_activities_to_group`, `remove_activities_from_group`, `list_group_activities`. Na tela: filtro, chip e grupos na atividade.
 - 17 nov 2026 — **Finanças · Validar removido:** saiu a coluna/selo provisório de Validado nas Despesas e nos empréstimos. Pago / Não pago / Atrasado continua.
 - 17 nov 2026 — **Finanças · Assinatura no cartão:** em **Nova despesa** (e no cartão) dá para cadastrar Netflix, iCloud… que entra na fatura todo mês, sem parcelar e sem data para acabar. Cancelar só para as próximas faturas; o que já entrou na fatura aberta fica.
-- 17 nov 2026 — **Finanças · Recorrentes · Aluguel e condomínio:** subcategorias de Moradia. Em Recorrentes, atalho para cadastrar cada um com “pago desde”, valor de cada mês no histórico e valor previsto deste mês em diante. Não debita saldo ao gravar os meses.
 
 ---
 
@@ -177,7 +177,7 @@ Trigger `on auth.users insert` → cria `profiles` (assim o seed do admin não e
 
 ### Conhecimento
 - `workspaces` — **agora também** `key` único opcional (ex. `opportunities`)
-- `workspace_folders` (um nível; sem pasta-dentro-de-pasta) — **agora também** `opportunityId` opcional → `Opportunity`
+- `workspace_folders` — pastas aninhadas (`parentFolderId`, até 8 níveis). Nome único entre irmãs. `opportunityId` opcional → `Opportunity`
 - `FolderAsset` — metadados de arquivo no Storage (`workspaceId`, `folderId` opcional = raiz do espaço, `kind` entrega\|anexo\|audio, `path`, sem binário)
 - `workspace_files` — `content` = JSON TipTap (`type: "doc"`), `excerpt` texto curto. **Agora também:** `kind`, `tags[]`, `searchText`, `contentHash`, `indexedAt`, `indexStatus`, `updatedBy`, `source`. Kinds extras: `transcricao`, `proposal_doc`, `arquitetura`, `nota`, `entrega`
 - `agents` — **agora também:** `slug`, `model`, `temperature`, `status`, `activePromptVersionId`, `retrievalConfig`, `capabilities`
@@ -344,7 +344,8 @@ Arquitetura: **um MCP = o escritório Nuage/JayP Cortex**. Amazon Quick conecta 
 - MCP Streamable HTTP: `https://jaypcortex.vercel.app/api/mcp` (também `/api/mcp/mcp`). Header `Authorization: Bearer <token>` — estático `jpc_…` **ou** access token OAuth. Escopos `read` / `propose` / `write` / `admin`.
 - **Porta de entrada:** `cortex` (pedido → agente + prompt + conhecimento + dados vivos + `suggested_tools`). Também `get_agent_context` e `list_agent_tools`. Prompt MCP `cortex_start`.
 - `search_knowledge` / `read_document` / `list_documents` = **só base de conhecimento, não contém tarefas**. Tarefas = `list_activities` / `cortex`.
-- Tools de leitura: `list_agents`, `get_agent`, `get_agent_prompt`, `list_workspaces`, `list_documents`, `read_document`, `search_knowledge`, `list_proposals`, `get_proposal`, `get_document_history`.
+- Tools de leitura: `list_agents`, `get_agent`, `get_agent_prompt`, `list_workspaces` (filtra `kind`; `include_archived`), `get_workspace_tree`, `list_files`, `get_file_children`, `list_documents`, `read_document` (id ou caminho `Espaço/Pasta/Arquivo`), `search_knowledge` (filtra `workspace` e `folder`; devolve o caminho), `list_proposals`, `get_proposal`, `get_document_history`.
+- Tools de **espaços** (schema só string): `create_workspace` (genérico, sem agente), `update_workspace`, `archive_workspace` (`confirm=true`; recusa `agent_room` e `opportunities`), `create_folder` (`parent` = subpasta), `update_folder`, `move_folder`, `delete_folder` (`confirm=true`), `create_file` (`parent_file` = subpágina, grava direto), `update_file`, `move_file`, `delete_file` (`confirm=true`), `create_structure_bulk` (`tree` = JSON em texto, idempotente pelo nome), `link_knowledge_tree`. `Workspace.kind` = `generic` | `agent_room` | `opportunities`. Migration `20261126180000_workspace_tree`.
 - Tools de **oportunidades** (schema só strings): leitura `list_opportunity_folders`, `get_document_outline`, `read_section`, `get_proposal_template`; escrita `create_opportunity_folder`, `create_file_in_folder`, `upsert_section`, `append_to_document`, `delete_section` (`destructiveHint`; heading inexistente → `{error:"not_found"}`), `import_transcript` (`folder_id`, `title?`, `text`; > 5 MB → partes), `register_delivery` (`folder_id`, `name`, `html` → `{asset_id, url_assinada, expires_at}`), `link_opportunity_folder` (`folder_id`, `opportunity_id`; vazio desvincula). Escritas de seção aceitam `expected_hash` e devolvem `{file_id, section_id, content_hash, revision_id, url}` ou `{error:"conflict", content_hash}`. Seed: `npm run seed:opportunities` e `npm run seed:propostas`.
 - Agente `propostas`: `cortex("montar proposta da Tamura")` roteia para ele. Entrega: `read_document` → `get_proposal_template` → gerar HTML → `register_delivery`.
 - Tools de rascunho: `propose_document_change`, `propose_new_document`, `propose_prompt_change`, `propose_agent_config`.

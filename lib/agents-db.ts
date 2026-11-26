@@ -72,6 +72,7 @@ async function createRoom(tx: Tx, agentName: string, color: string) {
       name: roomName(agentName),
       description: `Sala do agente ${agentName}: base de conhecimento, templates e entregas.`,
       color,
+      kind: "agent_room",
       order: (last?.order ?? -1) + 1,
     },
   });

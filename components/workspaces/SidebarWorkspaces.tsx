@@ -290,12 +290,18 @@ function SpaceNode({
       {open && (
         <div>
           {workspace.folders
-            .filter((folder) => folder.name !== TEMPLATES_FOLDER)
+            .filter((folder) => !folder.parentFolderId && folder.name !== TEMPLATES_FOLDER)
             .map((folder) => (
-            <FolderNode key={folder.id} folder={folder} depth={depth + 1} {...tree} />
+            <FolderNode
+              key={folder.id}
+              folder={folder}
+              allFolders={workspace.folders}
+              depth={depth + 1}
+              {...tree}
+            />
           ))}
-          {workspace.files.map((file) => (
-            <FileNode key={file.id} file={file} depth={depth + 1} {...tree} />
+          {workspace.files.filter((file) => !file.parentFileId).map((file) => (
+            <FileNode key={file.id} file={file} files={workspace.files} depth={depth + 1} {...tree} />
           ))}
           {anexos.map((asset) => (
             <AssetNode key={asset.id} asset={asset} depth={depth + 1} {...tree} />
@@ -309,14 +315,17 @@ function SpaceNode({
 
 function FolderNode({
   folder,
+  allFolders,
   depth,
   ...tree
-}: TreeProps & { folder: WorkspaceFolder; depth: number }) {
+}: TreeProps & { folder: WorkspaceFolder; allFolders: WorkspaceFolder[]; depth: number }) {
   const open = tree.isOpen(folder.id);
   const active = tree.activeFolderId === folder.id && !tree.activeFileId;
   const Icon = open ? FolderOpen : Folder;
   const anexos = folderAnexos(folder);
-  const childCount = folder.files.length + anexos.length;
+  const nested = allFolders.filter((item) => item.parentFolderId === folder.id);
+  const files = folder.files.filter((file) => !file.parentFileId);
+  const childCount = nested.length + files.length + anexos.length;
 
   return (
     <div>
@@ -345,8 +354,11 @@ function FolderNode({
       {open &&
         (childCount > 0 ? (
           <>
-            {folder.files.map((file) => (
-              <FileNode key={file.id} file={file} depth={depth + 1} {...tree} />
+            {nested.map((child) => (
+              <FolderNode key={child.id} folder={child} allFolders={allFolders} depth={depth + 1} {...tree} />
+            ))}
+            {files.map((file) => (
+              <FileNode key={file.id} file={file} files={folder.files} depth={depth + 1} {...tree} />
             ))}
             {anexos.map((asset) => (
               <AssetNode key={asset.id} asset={asset} depth={depth + 1} {...tree} />
@@ -361,24 +373,40 @@ function FolderNode({
 
 function FileNode({
   file,
+  files,
   depth,
   activeFileId,
   onNavigate,
-}: TreeProps & { file: WorkspaceFileSummary; depth: number }) {
+  ...tree
+}: TreeProps & { file: WorkspaceFileSummary; files: WorkspaceFileSummary[]; depth: number }) {
+  const children = files.filter((item) => item.parentFileId === file.id);
   return (
-    <Link
-      href={fileHref(file.workspaceId, file.id)}
-      onClick={onNavigate}
-      title={file.title}
-      className={`flex h-8 items-center gap-2 pr-2 text-[13px] transition-colors ${rowTone(
-        activeFileId === file.id
-      )}`}
-      style={indent(depth)}
-    >
-      <span className="-mr-1 w-5 shrink-0" aria-hidden />
-      <FileText className="h-4 w-4 shrink-0 opacity-85" strokeWidth={1.75} />
-      <span className="truncate">{file.title}</span>
-    </Link>
+    <div>
+      <Link
+        href={fileHref(file.workspaceId, file.id)}
+        onClick={onNavigate}
+        title={file.title}
+        className={`flex h-8 items-center gap-2 pr-2 text-[13px] transition-colors ${rowTone(
+          activeFileId === file.id
+        )}`}
+        style={indent(depth)}
+      >
+        <span className="-mr-1 w-5 shrink-0" aria-hidden />
+        <FileText className="h-4 w-4 shrink-0 opacity-85" strokeWidth={1.75} />
+        <span className="truncate">{file.title}</span>
+      </Link>
+      {children.map((child) => (
+        <FileNode
+          key={child.id}
+          file={child}
+          files={files}
+          depth={depth + 1}
+          activeFileId={activeFileId}
+          onNavigate={onNavigate}
+          {...tree}
+        />
+      ))}
+    </div>
   );
 }
 

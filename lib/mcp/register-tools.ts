@@ -15,6 +15,9 @@ import { registerGroupTools } from "@/lib/mcp/register-group-tools";
 import { registerFinanceTools } from "@/lib/mcp/register-finance-tools";
 import { registerCortexTools } from "@/lib/mcp/register-cortex-tools";
 import { registerOpportunityTools } from "@/lib/mcp/register-opportunity-tools";
+import { registerWorkspaceTools } from "@/lib/mcp/register-workspace-tools";
+import { documentPath } from "@/lib/workspaces/tree-logic";
+import { resolveFile, resolveFolder, resolveWorkspace } from "@/lib/workspaces/tree";
 import { parseEditorDocument } from "@/lib/workspaces";
 import { readMeta, writeMeta, type ToolServer } from "@/lib/mcp/annotations";
 
@@ -57,6 +60,7 @@ export function registerMcpTools(
   registerFinanceTools(server, ctx);
   registerCortexTools(server, ctx);
   registerOpportunityTools(server, ctx);
+  registerWorkspaceTools(server, ctx);
 
   server.registerTool("list_agents", {
     ...readMeta("Listar agentes"),
@@ -131,19 +135,6 @@ export function registerMcpTools(
     return text(jsonSafe({ draft, published }));
   }));
 
-  server.registerTool("list_workspaces", {
-    ...readMeta("Listar espaços"),
-    description: "Lista espaços de trabalho",
-    inputSchema: z.object({}),
-  }, async () => {
-    assertScope(ctx.scopes, "read");
-    const rows = await prisma.workspace.findMany({
-      orderBy: { order: "asc" },
-      select: { id: true, name: true, color: true, _count: { select: { files: true } }, agent: { select: { id: true, slug: true } } },
-    });
-    return text(rows);
-  });
-
   server.registerTool("list_documents", {
     ...readMeta("Listar documentos"),
     description: "Lista documentos da base de conhecimento. Só documentos — não contém tarefas. Para tarefas use list_activities ou cortex.",
@@ -181,11 +172,14 @@ export function registerMcpTools(
 
   server.registerTool("read_document", {
     ...readMeta("Ler documento"),
-    description: "Lê um documento da base de conhecimento. Só documentos — não contém tarefas. Para tarefas use list_activities ou cortex.",
+    description: "Lê um documento da base. file_id é o id ou o caminho (Espaço/Pasta/Arquivo). Não contém tarefas.",
     inputSchema: z.object({ file_id: z.string() }),
   }, wrap(async ({ file_id }) => {
     assertScope(ctx.scopes, "read");
-    const file = await prisma.workspaceFile.findUnique({ where: { id: String(file_id) } });
+    const token = String(file_id);
+    const file = token.includes("/")
+      ? await resolveFile({ path: token })
+      : await prisma.workspaceFile.findUnique({ where: { id: token } });
     if (!file) return text({ error: "Arquivo não encontrado" });
     let markdown = "";
     try {
@@ -210,10 +204,12 @@ export function registerMcpTools(
 
   server.registerTool("search_knowledge", {
     ...readMeta("Buscar na base"),
-    description: "Busca híbrida na base de conhecimento (semântica + FTS). Só documentos — não contém tarefas. Para tarefas use list_activities ou cortex.",
+    description: "Busca híbrida na base (semântica + FTS). workspace e folder limitam o espaço ou a pasta. O resultado traz path. Não contém tarefas.",
     inputSchema: z.object({
       query: z.string(),
       agent: z.string().optional(),
+      workspace: z.string().optional(),
+      folder: z.string().optional(),
       kinds: z.array(z.string()).optional(),
       top_k: z.number().optional(),
     }),
@@ -230,7 +226,56 @@ export function registerMcpTools(
       kinds: args.kinds as string[] | undefined,
       topK: typeof args.top_k === "number" ? args.top_k : 8,
     });
-    return text(hits);
+    if (!hits.length) return text(hits);
+    const workspace = args.workspace ? await resolveWorkspace(String(args.workspace)) : null;
+    const folder = args.folder
+      ? await resolveFolder({ id: String(args.folder), path: String(args.folder), workspace: workspace?.id })
+      : null;
+    const details = await prisma.workspaceFile.findMany({
+      where: { id: { in: hits.map((hit) => hit.fileId) } },
+      select: {
+        id: true,
+        title: true,
+        folderId: true,
+        parentFileId: true,
+        workspaceId: true,
+        workspace: { select: { name: true } },
+      },
+    });
+    const workspaceIds = [...new Set(details.map((file) => file.workspaceId))];
+    const folders = await prisma.workspaceFolder.findMany({
+      where: { workspaceId: { in: workspaceIds } },
+      select: { id: true, parentFolderId: true, name: true, workspaceId: true },
+    });
+    const allowedFolder = (folderId: string | null) => {
+      if (!folder) return true;
+      if (!folderId) return false;
+      let current: string | null = folderId;
+      const seen = new Set<string>();
+      while (current && !seen.has(current)) {
+        if (current === folder.id) return true;
+        seen.add(current);
+        current = folders.find((item) => item.id === current)?.parentFolderId ?? null;
+      }
+      return false;
+    };
+    const visible = hits.flatMap((hit) => {
+      const file = details.find((item) => item.id === hit.fileId);
+      if (!file) return [];
+      if (workspace && file.workspaceId !== workspace.id) return [];
+      if (!allowedFolder(file.folderId)) return [];
+      return [{
+        ...hit,
+        path: documentPath({
+          workspaceName: file.workspace.name,
+          folderId: file.folderId,
+          fileId: file.id,
+          folders: folders.filter((item) => item.workspaceId === file.workspaceId),
+          files: details.filter((item) => item.workspaceId === file.workspaceId),
+        }),
+      }];
+    });
+    return text(visible);
   }));
 
   server.registerTool("list_proposals", {

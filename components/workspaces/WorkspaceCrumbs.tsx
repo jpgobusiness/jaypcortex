@@ -9,10 +9,13 @@ type CrumbWorkspace = { id: string; name: string; color?: string };
 export default function WorkspaceCrumbs({
   workspace,
   folder,
+  folders,
 }: {
   workspace?: CrumbWorkspace | null;
   folder?: { id: string; name: string } | null;
+  folders?: { id: string; name: string }[];
 }) {
+  const chain = folders ?? (folder ? [folder] : []);
   return (
     <nav aria-label="Caminho" className="flex min-w-0 items-center gap-1 text-xs text-[var(--muted)]">
       <Link href="/espacos" className="hover:text-[var(--foreground)]">
@@ -36,17 +39,17 @@ export default function WorkspaceCrumbs({
           </Link>
         </>
       )}
-      {folder && workspace && (
-        <>
+      {workspace && chain.map((item) => (
+        <span key={item.id} className="flex min-w-0 items-center gap-1">
           <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
           <Link
-            href={folderHref(workspace.id, folder.id)}
-            className="truncate text-[var(--foreground)] hover:underline"
+            href={folderHref(workspace.id, item.id)}
+            className="truncate hover:text-[var(--foreground)]"
           >
-            {folder.name}
+            {item.name}
           </Link>
-        </>
-      )}
+        </span>
+      ))}
     </nav>
   );
 }

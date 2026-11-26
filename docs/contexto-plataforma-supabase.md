@@ -3,10 +3,11 @@
 > **Fonte da verdade do estado atual:** [`docs/contexto-plataforma.md`](./contexto-plataforma.md).
 > Este arquivo é o plano de discussão (auth, tabelas, edge). Se os dois divergirem, vale o arquivo principal.
 
-Última leitura do código: 25 nov 2026.
+Última leitura do código: 26 nov 2026.
 
 ## Histórico de mudanças
 
+- 26 nov 2026 — **Árvore de espaços.** `workspaces.kind` (`generic` | `agent_room` | `opportunities`), `icon`, `archivedAt`. `workspace_folders.parentFolderId` e `workspace_files.parentFileId` (até 8 níveis, nome único entre irmãos). Arquivar só espaço genérico. Apagar pasta/arquivo é hard delete com `confirm=true`. MCP no mesmo `/api/mcp`: `create_workspace`, `get_workspace_tree`, `create_folder`, `create_file`, `create_structure_bulk`, mover e apagar. `search_knowledge` aceita espaço/pasta e devolve o caminho. Migration `20261126180000_workspace_tree`. O espaço Visão de Negócios (17 pastas, EBITDA com 3 subpáginas) já está no banco compartilhado.
 - 25 nov 2026 — **Finanças no MCP.** O Quick opera despesas no `/api/mcp`: listar, buscar (“já existe?”), relatório com totais prontos, criar avulsa/recorrente/cartão/aluguel, atualizar, marcar Pago (`clearedAt`, não debita) e apagar (`confirm=true`). Também receita, transferência, contas a pagar, faturas e empréstimos em leitura. Schema só string.
 - 25 nov 2026 — **Grupos de atividade.** Tabelas `ActivityGroup` e `ActivityGroupMember` (N:N). Nome único por usuário (`ownerId`). Responsável em `assigneeEmail` (Acompanhamento David → `dpsilva@nuageit.com.br`). RLS `authenticated_active_all` via `is_active_user()`. API `/api/activity-groups`. MCP: `create_group`, `update_group`, `delete_group`, `list_groups`, `get_group`, `add_activities_to_group`, `remove_activities_from_group`, `list_group_activities`. Apagar grupo não apaga atividades. `list`/`get` de atividade devolvem `groupIds` e `groupNames`; `create_activity` aceita `group_id`.
 
@@ -158,7 +159,7 @@ Mesmo `/api/mcp`, schema só string, valores em reais (`89,90`). Despesas: `list
 
 ### Conhecimento
 - `workspaces`
-- `workspace_folders` (um nível; sem pasta-dentro-de-pasta)
+- `workspace_folders` — aninhadas (`parent_folder_id`). Nome único entre irmãs.
 - `workspace_files` — `content` = JSON TipTap (`type: "doc"`), `excerpt` texto curto
 - `agents`
 - `agent_knowledge` — N:N agente ↔ arquivo

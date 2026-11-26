@@ -3,7 +3,7 @@ import { hasScope, type McpScope } from "@/lib/mcp/tokens";
 import { normalize } from "@/lib/cortex/normalize";
 import type { CortexIntent, SuggestedTool } from "@/lib/cortex/types";
 
-const DESTRUCTIVE = new Set(["delete_activity", "purge_deleted_activities", "delete_section", "delete_group", "delete_expense"]);
+const DESTRUCTIVE = new Set(["delete_activity", "purge_deleted_activities", "delete_section", "delete_group", "delete_expense", "delete_folder", "delete_file", "archive_workspace"]);
 const WRITE_TOOLS = new Set([
   "create_activity", "create_activities_bulk", "update_activity",
   "start_activity", "pause_activity", "complete_activity", "reopen_activity",
@@ -14,6 +14,10 @@ const WRITE_TOOLS = new Set([
   "create_group", "update_group", "delete_group", "add_activities_to_group", "remove_activities_from_group",
   "create_expense", "create_recurring_expense", "create_card_expense", "create_housing_expense",
   "update_expense", "pay_expense", "delete_expense", "create_income", "create_transfer", "pay_card_invoice",
+  "create_workspace", "update_workspace", "archive_workspace",
+  "create_folder", "update_folder", "move_folder", "delete_folder",
+  "create_file", "update_file", "move_file", "delete_file",
+  "create_structure_bulk", "link_knowledge_tree",
   "create_opportunity_folder", "create_file_in_folder", "upsert_section",
   "append_to_document", "link_opportunity_folder", "delete_section",
   "import_transcript", "register_delivery",

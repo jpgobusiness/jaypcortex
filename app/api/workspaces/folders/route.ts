@@ -19,8 +19,22 @@ export async function POST(req: Request) {
     if (!name) return badRequest("Nome da pasta é obrigatório");
     if (name.length > NAME_MAX_LENGTH) return badRequest(NAME_TOO_LONG);
 
+    const parentFolderId = str(body.parentFolderId);
+    if (parentFolderId) {
+      const parent = await prisma.workspaceFolder.findUnique({
+        where: { id: parentFolderId },
+        select: { workspaceId: true },
+      });
+      if (!parent || parent.workspaceId !== workspaceId) return badRequest("Pasta pai não encontrada neste espaço");
+    }
+
     const folder = await prisma.workspaceFolder.create({
-      data: { workspaceId, name, order: await nextFolderOrder(workspaceId) },
+      data: {
+        workspaceId,
+        parentFolderId: parentFolderId || null,
+        name,
+        order: await nextFolderOrder(workspaceId, parentFolderId || null),
+      },
     });
     return ok({ ...folder, files: [] }, 201);
   } catch (e) {

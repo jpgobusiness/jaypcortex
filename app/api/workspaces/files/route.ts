@@ -25,8 +25,18 @@ export async function POST(req: Request) {
     });
     if (!workspace) return badRequest("Espaço não encontrado");
 
-    const folderId = str(body.folderId);
-    if (folderId) {
+    let folderId = str(body.folderId) || null;
+    const parentFileId = str(body.parentFileId) || null;
+    if (parentFileId) {
+      const parent = await prisma.workspaceFile.findUnique({
+        where: { id: parentFileId },
+        select: { workspaceId: true, folderId: true },
+      });
+      if (!parent || parent.workspaceId !== workspaceId) {
+        return badRequest("Arquivo pai não encontrado neste espaço");
+      }
+      folderId = parent.folderId;
+    } else if (folderId) {
       const folder = await prisma.workspaceFolder.findUnique({
         where: { id: folderId },
         select: { workspaceId: true },
@@ -40,7 +50,7 @@ export async function POST(req: Request) {
     if (title.length > TITLE_MAX_LENGTH) return badRequest(TITLE_TOO_LONG);
     const kind = isDocumentKind(body.kind) ? body.kind : undefined;
 
-    if (folderId && str(body.title) && kind) {
+    if (folderId && str(body.title) && kind && !parentFileId) {
       const saved = await createFileInFolder({
         folder_id: folderId,
         title,
@@ -59,9 +69,10 @@ export async function POST(req: Request) {
       data: {
         workspaceId,
         folderId,
+        parentFileId,
         title,
         ...(kind ? { kind } : {}),
-        order: await nextFileOrder(workspaceId, folderId),
+        order: await nextFileOrder(workspaceId, folderId, parentFileId),
         updatedBy: profile.id,
         source: "ui",
       },

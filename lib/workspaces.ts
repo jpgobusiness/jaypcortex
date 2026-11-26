@@ -122,6 +122,34 @@ export function workspaceFiles(workspace: WorkspaceTree): WorkspaceFileSummary[]
   ];
 }
 
+/** Da raiz até a pasta, para o breadcrumb. */
+export function folderAncestors(folders: WorkspaceFolder[], folderId: string | null) {
+  const byId = new Map(folders.map((folder) => [folder.id, folder]));
+  const chain: WorkspaceFolder[] = [];
+  let current = folderId ? byId.get(folderId) : undefined;
+  const seen = new Set<string>();
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    chain.unshift(current);
+    current = current.parentFolderId ? byId.get(current.parentFolderId) : undefined;
+  }
+  return chain;
+}
+
+/** Arquivos pais, do mais alto até o pai imediato. */
+export function fileAncestors(files: WorkspaceFileSummary[], fileId: string) {
+  const byId = new Map(files.map((file) => [file.id, file]));
+  const chain: WorkspaceFileSummary[] = [];
+  let current = byId.get(fileId)?.parentFileId ? byId.get(byId.get(fileId)!.parentFileId!) : undefined;
+  const seen = new Set<string>();
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    chain.unshift(current);
+    current = current.parentFileId ? byId.get(current.parentFileId) : undefined;
+  }
+  return chain;
+}
+
 /** Anexos da pasta (sem entregas HTML). */
 export function folderAnexos(folder: WorkspaceFolder): FolderAsset[] {
   return folder.assets ?? [];

@@ -60,6 +60,7 @@ export async function upsertFileContent(opts: {
   fileId?: string;
   workspaceId?: string;
   folderId?: string | null;
+  parentFileId?: string | null;
   title?: string;
   content?: EditorDocument | string;
   kind?: string;
@@ -92,6 +93,7 @@ export async function upsertFileContent(opts: {
       data: {
         workspaceId,
         folderId,
+        parentFileId: opts.parentFileId ?? null,
         title,
         content: serialized,
         excerpt: documentExcerpt(doc),
@@ -99,7 +101,7 @@ export async function upsertFileContent(opts: {
         tags: tags ?? [],
         source,
         updatedBy: opts.createdBy ?? null,
-        order: await nextFileOrder(workspaceId, folderId),
+        order: await nextFileOrder(workspaceId, folderId, opts.parentFileId ?? null),
       },
     });
     fileId = created.id;

@@ -145,6 +145,9 @@ export type Workspace = {
   key?: string | null;
   description: string | null;
   color: string;
+  kind?: string;
+  icon?: string | null;
+  archivedAt?: string | null;
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -162,6 +165,7 @@ export type WorkspaceFileSummary = {
   id: string;
   workspaceId: string;
   folderId: string | null;
+  parentFileId?: string | null;
   title: string;
   excerpt: string;
   order: number;
@@ -192,6 +196,7 @@ export type FolderAsset = {
 export type WorkspaceFolder = {
   id: string;
   workspaceId: string;
+  parentFolderId?: string | null;
   name: string;
   order: number;
   opportunityId?: string | null;

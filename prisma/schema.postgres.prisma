@@ -502,6 +502,10 @@ model Workspace {
   key         String?           @unique
   description String?
   color       String            @default("#7b68ee")
+  /// generic | agent_room | opportunities
+  kind        String            @default("generic")
+  icon        String?
+  archivedAt  DateTime?
   order       Int               @default(0)
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
@@ -511,23 +515,29 @@ model Workspace {
   agent       Agent? // preenchido quando o espaço é a sala de um agente
 
   @@index([order])
+  @@index([kind])
+  @@index([archivedAt])
 }
 
 /// Pasta de um espaço, para separar arquivos.
 model WorkspaceFolder {
-  id            String          @id @default(cuid())
-  workspaceId   String
-  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name          String
-  order         Int             @default(0)
-  opportunityId String?
-  opportunity   Opportunity?    @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  files         WorkspaceFile[]
-  assets        FolderAsset[]
+  id             String            @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parentFolderId String?
+  parentFolder   WorkspaceFolder?  @relation("FolderChildren", fields: [parentFolderId], references: [id], onDelete: Cascade)
+  childFolders   WorkspaceFolder[] @relation("FolderChildren")
+  name           String
+  order          Int               @default(0)
+  opportunityId  String?
+  opportunity    Opportunity?      @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  files          WorkspaceFile[]
+  assets         FolderAsset[]
 
   @@index([workspaceId, order])
+  @@index([parentFolderId])
   @@index([opportunityId])
 }
 
@@ -560,6 +570,9 @@ model WorkspaceFile {
   workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   folderId     String?
   folder       WorkspaceFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  parentFileId String?
+  parentFile   WorkspaceFile?   @relation("FileChildren", fields: [parentFileId], references: [id], onDelete: Cascade)
+  childFiles   WorkspaceFile[]  @relation("FileChildren")
   title        String           @default("Sem título")
   content      String           @default("") // documento do editor em JSON (TipTap)
   excerpt      String           @default("") // início do texto, para prévias no dashboard
@@ -581,6 +594,7 @@ model WorkspaceFile {
 
   @@index([workspaceId, folderId, order])
   @@index([folderId])
+  @@index([parentFileId])
   @@index([kind])
 }
 

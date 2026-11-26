@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Clock, FilePlus, FileText, Trash2 } from "lucide-react";
+import { Clock, FilePlus, FileText, FolderPlus, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/form";
 import FolderDeliveries from "@/components/workspaces/FolderDeliveries";
@@ -22,6 +22,8 @@ import { OPPORTUNITIES_KEY, TEMPLATES_FOLDER } from "@/lib/opportunities/constan
 import {
   countLabel,
   fileHref,
+  folderAncestors,
+  folderHref,
   formatDateTime,
   lastFolderUpdate,
   workspaceHref,
@@ -80,6 +82,24 @@ export default function PastaPage() {
   async function renameFolder(name: string) {
     await apiPatch(`/api/workspaces/folders/${currentFolder.id}`, { name });
     await reload();
+  }
+
+  async function createSubfolder() {
+    const name = prompt("Nome da subpasta");
+    if (!name?.trim()) return;
+    setCreatingFile(true);
+    try {
+      await apiPost("/api/workspaces/folders", {
+        workspaceId: current.id,
+        parentFolderId: currentFolder.id,
+        name: name.trim(),
+      });
+      await reload();
+    } catch (cause) {
+      alert(cause instanceof Error ? cause.message : "Erro ao criar a subpasta");
+    } finally {
+      setCreatingFile(false);
+    }
   }
 
   async function createFile() {
@@ -175,10 +195,18 @@ export default function PastaPage() {
     }
   }
 
+  const childFolders = current.folders.filter((item) => item.parentFolderId === currentFolder.id);
+  const rootFiles = currentFolder.files.filter((file) => !file.parentFileId);
+
   return (
     <div>
       <PageHeader
-        crumbs={<WorkspaceCrumbs workspace={current} />}
+        crumbs={
+          <WorkspaceCrumbs
+            workspace={current}
+            folders={folderAncestors(current.folders, currentFolder.id)}
+          />
+        }
         title={
           <HeaderTitleInput
             value={currentFolder.name}
@@ -219,6 +247,9 @@ export default function PastaPage() {
                 </Button>
               </>
             )}
+            <Button variant="outline" onClick={() => void createSubfolder()} disabled={creatingFile}>
+              <FolderPlus className="h-4 w-4" /> Nova subpasta
+            </Button>
             <Button onClick={() => void createFile()} disabled={creatingFile}>
               <FilePlus className="h-4 w-4" /> Novo arquivo
             </Button>
@@ -289,7 +320,22 @@ export default function PastaPage() {
           <h2 className="mb-3 text-sm font-semibold text-[var(--foreground)]">
             Arquivos
           </h2>
-          {currentFolder.files.length === 0 ? (
+          {childFolders.length > 0 && (
+            <ul className="mb-4 space-y-2">
+              {childFolders.map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      href={folderHref(current.id, item.id)}
+                      className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm hover:border-[var(--brand)]"
+                    >
+                      <FolderPlus className="h-4 w-4 text-[var(--muted)]" />
+                      {item.name}
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          )}
+          {rootFiles.length === 0 && childFolders.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-6 py-12 text-center">
               <h3 className="text-base font-semibold text-[var(--foreground)]">
                 Esta pasta está vazia
@@ -304,7 +350,7 @@ export default function PastaPage() {
               </div>
             </div>
           ) : (
-            <WorkspaceFileList files={currentFolder.files} onDelete={deleteFile} />
+            <WorkspaceFileList files={rootFiles} onDelete={deleteFile} />
           )}
         </section>
 

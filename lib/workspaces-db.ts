@@ -6,6 +6,7 @@ export const fileSummarySelect = {
   id: true,
   workspaceId: true,
   folderId: true,
+  parentFileId: true,
   title: true,
   excerpt: true,
   order: true,
@@ -36,7 +37,7 @@ const anexoWhere = { kind: { not: "entrega" } } as const;
 /** Espaços com pastas, arquivos e anexos, na ordem do menu. */
 export function findWorkspaceTrees(where?: Prisma.WorkspaceWhereInput) {
   return prisma.workspace.findMany({
-    where,
+    where: { archivedAt: null, ...where },
     orderBy: [{ order: "asc" }, { createdAt: "asc" }],
     include: {
       folders: {
@@ -86,18 +87,22 @@ export async function nextWorkspaceOrder() {
   return (last?.order ?? -1) + 1;
 }
 
-export async function nextFolderOrder(workspaceId: string) {
+export async function nextFolderOrder(workspaceId: string, parentFolderId: string | null = null) {
   const last = await prisma.workspaceFolder.findFirst({
-    where: { workspaceId },
+    where: { workspaceId, parentFolderId },
     orderBy: { order: "desc" },
     select: { order: true },
   });
   return (last?.order ?? -1) + 1;
 }
 
-export async function nextFileOrder(workspaceId: string, folderId: string | null) {
+export async function nextFileOrder(
+  workspaceId: string,
+  folderId: string | null,
+  parentFileId: string | null = null
+) {
   const last = await prisma.workspaceFile.findFirst({
-    where: { workspaceId, folderId },
+    where: { workspaceId, folderId, parentFileId },
     orderBy: { order: "desc" },
     select: { order: true },
   });

@@ -112,7 +112,7 @@ export default function EspacoDashboardPage() {
 
   const current = workspace;
   const visibleFolders = current.folders.filter(
-    (folder) => showTemplates || folder.name !== TEMPLATES_FOLDER
+    (folder) => !folder.parentFolderId && (showTemplates || folder.name !== TEMPLATES_FOLDER)
   );
   const templateFolder = current.folders.find((folder) => folder.name === TEMPLATES_FOLDER);
   const recent = [...files]

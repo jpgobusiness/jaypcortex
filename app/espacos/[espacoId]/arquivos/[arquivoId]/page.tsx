@@ -18,9 +18,12 @@ import { useWorkspaces } from "@/components/workspaces/WorkspacesProvider";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/fetcher";
 import {
   DEFAULT_FILE_TITLE,
+  fileAncestors,
   fileHref,
+  folderAncestors,
   folderHref,
   formatDateTime,
+  workspaceFiles,
   workspaceHref,
 } from "@/lib/workspaces";
 import type { WorkspaceFileDetail, WorkspaceFileSummary } from "@/lib/types";
@@ -120,7 +123,8 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
   }, []);
 
   const workspace = workspaces.find((item) => item.id === workspaceId) ?? null;
-  const folder = workspace?.folders.find((item) => item.id === folderId) ?? null;
+  const folderChain = folderAncestors(workspace?.folders ?? [], folderId);
+  const parents = workspace ? fileAncestors(workspaceFiles(workspace), fileId) : [];
 
   function startEdit() {
     setMode("edit");
@@ -202,6 +206,20 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
     }
   }
 
+  async function createSubfile() {
+    try {
+      const created = await apiPost<WorkspaceFileSummary>("/api/workspaces/files", {
+        workspaceId,
+        parentFileId: fileId,
+        title: "Sem título",
+      });
+      await reload();
+      router.push(fileHref(workspaceId, created.id, { editar: true }));
+    } catch (cause) {
+      alert(cause instanceof Error ? cause.message : "Erro ao criar a subpágina");
+    }
+  }
+
   async function remove() {
     const name = title.trim() || DEFAULT_FILE_TITLE;
     if (!confirm(`Excluir o arquivo "${name}"?`)) return;
@@ -255,17 +273,25 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
             )}
             <span className="truncate">{workspace?.name ?? "Espaço"}</span>
           </Link>
-          {folder && (
-            <>
+          {folderChain.map((item) => (
+            <span key={item.id} className="flex min-w-0 items-center gap-1">
               <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
               <Link
-                href={folderHref(workspaceId, folder.id)}
+                href={folderHref(workspaceId, item.id)}
                 className="truncate hover:text-[var(--foreground)]"
               >
-                {folder.name}
+                {item.name}
               </Link>
-            </>
-          )}
+            </span>
+          ))}
+          {parents.map((item) => (
+            <span key={item.id} className="flex min-w-0 items-center gap-1">
+              <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
+              <Link href={fileHref(workspaceId, item.id)} className="truncate hover:text-[var(--foreground)]">
+                {item.title}
+              </Link>
+            </span>
+          ))}
           <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
           <span className="truncate text-[var(--foreground)]">
             {title.trim() || DEFAULT_FILE_TITLE}
@@ -295,10 +321,15 @@ function FilePage({ workspaceId, fileId }: { workspaceId: string; fileId: string
               </Button>
             </>
           ) : (
-            <Button type="button" onClick={startEdit} className="h-9 px-3 md:h-8">
-              <Pencil className="h-3.5 w-3.5" />
-              Editar
-            </Button>
+            <>
+              <Button type="button" variant="outline" onClick={() => void createSubfile()} className="h-9 px-3 md:h-8">
+                + subpágina
+              </Button>
+              <Button type="button" onClick={startEdit} className="h-9 px-3 md:h-8">
+                <Pencil className="h-3.5 w-3.5" />
+                Editar
+              </Button>
+            </>
           )}
           {workspace && (
             <select

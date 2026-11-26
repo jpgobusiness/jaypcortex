@@ -82,7 +82,7 @@ export async function ensureOpportunitiesWorkspace() {
   if (byName && !byName.agent) {
     return prisma.workspace.update({
       where: { id: byName.id },
-      data: { key: OPPORTUNITIES_KEY },
+      data: { key: OPPORTUNITIES_KEY, kind: "opportunities" },
     });
   }
   return prisma.workspace.create({
@@ -91,6 +91,7 @@ export async function ensureOpportunitiesWorkspace() {
       key: OPPORTUNITIES_KEY,
       description: "Uma pasta = uma oportunidade. Contexto, transcrição e Proposal Doc.",
       color: "#ea580c",
+      kind: "opportunities",
       order: await nextWorkspaceOrder(),
     },
   });
